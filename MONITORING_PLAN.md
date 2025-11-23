@@ -307,19 +307,19 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 # Systemd timers (more reliable)
 ```
 
-**Daily (3 AM your time):**
+**Daily (3:00 AM EET / Cairo time):**
 - Docker system prune (remove unused images)
 - Log rotation
 - Backup health check
 - Security scan
 
-**Weekly (Sunday 3 AM):**
+**Weekly (Sunday 3:00 AM EET):**
 - System updates check
 - Container image updates (Watchtower)
 - Disk space cleanup
 - Certificate renewal check
 
-**Monthly (1st Sunday 3 AM):**
+**Monthly (1st Sunday 3:00 AM EET):**
 - Full system reboot (if no issues in past 7 days)
 - Backup verification
 - Security audit
@@ -332,7 +332,7 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 ✓ All containers healthy
 ✓ Disk space >20%
 ✓ No scheduled events (you can configure blackout dates)
-✓ Time window: 2-5 AM your timezone
+✓ Time window: 2:00-5:00 AM EET (Cairo time)
 ```
 
 **Reboot process:**
