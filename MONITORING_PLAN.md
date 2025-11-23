@@ -505,11 +505,52 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 
 ---
 
+## Configuration Summary
+
+### User Preferences (Configured)
+- **Timezone:** Cairo, Egypt (EET, UTC+2)
+- **Notifications:** ntfy + Telegram integration
+- **Alert Sensitivity:** Balanced (standard thresholds, occasional warnings)
+- **Scheduled Reboot:** Monthly (1st Sunday, 3:00 AM EET)
+
+### Service Priority (Critical to Standard)
+**Priority 1 - Critical (immediate alerts):**
+1. NetBird VPN infrastructure (management, dashboard, relay, signal)
+2. Zitadel authentication service
+3. Caddy reverse proxy
+
+**Priority 2 - High (5-minute batched alerts):**
+4. TOTAL-FIX presentation site
+5. PostgreSQL database
+6. Coturn (TURN/STUN server)
+
+**Priority 3 - Standard (monitoring only, no auto-restart):**
+7. LMS Canvas platform (excluded from critical monitoring)
+
+### Alert Routing Configuration
+```yaml
+CRITICAL (Priority 1 services down):
+  - ntfy topic: oci-critical
+  - Telegram: Immediate message
+  - Sound: Enabled
+  - Retry: 3 attempts, 1 min apart
+
+WARNING (High resource usage, restarts):
+  - ntfy topic: oci-warning
+  - Telegram: Batched every 5 minutes
+  - Sound: Disabled
+
+INFO (Updates, maintenance):
+  - ntfy topic: oci-info
+  - Telegram: Daily digest (8:00 AM EET)
+  - Sound: Disabled
+```
+
 ## Next Steps
 
-1. **Review and approve this plan**
-2. **Answer the questions from earlier** (timezone, notification preferences, critical services)
-3. **Start Week 1 implementation** (Netdata + Loki)
+1. ✅ **Plan reviewed and approved**
+2. ✅ **Configuration completed**
+3. **Ready to start Week 1 implementation** (Netdata + Loki)
 4. **Iterate based on real-world observations**
 
 ---
