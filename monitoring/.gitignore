@@ -1,0 +1,21 @@
+# Netdata runtime files
+netdata/config/*
+!netdata/config/health.d/
+netdata/lib/
+netdata/cache/
+
+# Loki data
+loki/data/
+loki/*.db
+
+# Promtail positions
+promtail/positions.yaml
+
+# Docker volumes
+volumes/
+
+# Environment files with secrets
+.env
+
+# Logs
+*.log

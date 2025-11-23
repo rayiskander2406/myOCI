@@ -1,0 +1,86 @@
+version: '3.8'
+
+services:
+  # Netdata - Real-time monitoring with per-second metrics
+  netdata:
+    image: netdata/netdata:latest
+    container_name: oci-netdata
+    hostname: oci-server-cairo
+    restart: unless-stopped
+    cap_add:
+      - SYS_PTRACE
+      - SYS_ADMIN
+    security_opt:
+      - apparmor:unconfined
+    volumes:
+      # Netdata configuration
+      - ./netdata/config:/etc/netdata
+      - netdatalib:/var/lib/netdata
+      - netdatacache:/var/cache/netdata
+
+      # Host monitoring
+      - /etc/passwd:/host/etc/passwd:ro
+      - /etc/group:/host/etc/group:ro
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /etc/os-release:/host/etc/os-release:ro
+
+      # Docker monitoring
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - NETDATA_CLAIM_TOKEN=${NETDATA_CLAIM_TOKEN:-}
+      - NETDATA_CLAIM_URL=${NETDATA_CLAIM_URL:-}
+      - NETDATA_CLAIM_ROOMS=${NETDATA_CLAIM_ROOMS:-}
+    ports:
+      - "19999:19999"
+    networks:
+      - monitoring
+      - infrastructure_files_default  # Connect to existing NetBird network
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  # Loki - Log aggregation system
+  loki:
+    image: grafana/loki:3.0.0
+    container_name: oci-loki
+    restart: unless-stopped
+    volumes:
+      - ./loki/config.yml:/etc/loki/config.yml:ro
+      - loki-data:/loki
+    command: -config.file=/etc/loki/config.yml
+    ports:
+      - "3100:3100"
+    networks:
+      - monitoring
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  # Promtail - Log collection agent
+  promtail:
+    image: grafana/promtail:3.0.0
+    container_name: oci-promtail
+    restart: unless-stopped
+    volumes:
+      - ./promtail/config.yml:/etc/promtail/config.yml:ro
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - monitoring
+      - infrastructure_files_default  # Access to NetBird containers
+    depends_on:
+      - loki
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+networks:
+  monitoring:
+    driver: bridge
+  infrastructure_files_default:
+    external: true
+
+volumes:
+  netdatalib:
+  netdatacache:
+  loki-data:
