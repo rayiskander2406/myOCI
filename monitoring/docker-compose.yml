@@ -35,7 +35,7 @@ services:
       - "19999:19999"
     networks:
       - monitoring
-      - infrastructure_files_default  # Connect to existing NetBird network
+      - infrastructure_files_netbird  # Connect to existing NetBird network
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
 
@@ -68,7 +68,7 @@ services:
     command: -config.file=/etc/promtail/config.yml
     networks:
       - monitoring
-      - infrastructure_files_default  # Access to NetBird containers
+      - infrastructure_files_netbird  # Access to NetBird containers
     depends_on:
       - loki
     labels:
@@ -77,7 +77,7 @@ services:
 networks:
   monitoring:
     driver: bridge
-  infrastructure_files_default:
+  infrastructure_files_netbird:
     external: true
 
 volumes:
