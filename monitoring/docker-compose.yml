@@ -14,7 +14,8 @@ services:
       - apparmor:unconfined
     volumes:
       # Netdata configuration
-      - ./netdata/config:/etc/netdata
+      - ./netdata/config:/etc/netdata:ro
+      - ./netdata/config/custom-plugins.d/ntfy-notify.sh:/etc/netdata/custom-plugins.d/ntfy-notify.sh:ro
       - netdatalib:/var/lib/netdata
       - netdatacache:/var/cache/netdata
 
@@ -125,6 +126,35 @@ services:
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
 
+  # Grafana - Metrics and logs visualization
+  grafana:
+    image: grafana/grafana:11.0.0
+    container_name: oci-grafana
+    hostname: grafana-cairo
+    restart: unless-stopped
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/etc/grafana/dashboards:ro
+    environment:
+      - TZ=Africa/Cairo
+      - GF_SERVER_ROOT_URL=http://localhost:3000
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_INSTALL_PLUGINS=
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_ANALYTICS_CHECK_FOR_UPDATES=false
+    ports:
+      - "3000:3000"
+    networks:
+      - monitoring
+      - infrastructure_files_netbird  # For Caddy reverse proxy access
+    depends_on:
+      - loki
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
 networks:
   monitoring:
     driver: bridge
@@ -137,3 +167,4 @@ volumes:
   loki-data:
   ntfy-cache:
   ntfy-data:
+  grafana-data:

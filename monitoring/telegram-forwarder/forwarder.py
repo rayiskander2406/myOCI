@@ -77,7 +77,7 @@ def format_message(notification: Dict[str, Any]) -> str:
     priority_map = {1: 'min', 2: 'low', 3: 'default', 4: 'high', 5: 'urgent'}
     priority_name = priority_map.get(priority_int, 'default') if isinstance(priority_int, int) else priority_int
     emoji = PRIORITY_EMOJI.get(priority_name, PRIORITY_EMOJI['default'])
-    message_parts.append(f"{emoji} **Priority: {priority_name.upper()}**")
+    message_parts.append(f"{emoji} <b>Priority: {priority_name.upper()}</b>")
 
     # Add tags with emojis if present
     tags = notification.get('tags', [])
@@ -87,20 +87,20 @@ def format_message(notification: Dict[str, Any]) -> str:
 
     # Add title if present
     if 'title' in notification and notification['title']:
-        message_parts.append(f"\n**{notification['title']}**")
+        message_parts.append(f"\n<b>{notification['title']}</b>")
 
     # Add main message
     message_parts.append(f"\n{notification.get('message', 'No message')}")
 
     # Add topic info
     topic = notification.get('topic', 'unknown')
-    message_parts.append(f"\n\n_Topic: {topic}_")
+    message_parts.append(f"\n\n<i>Topic: {topic}</i>")
 
     # Add timestamp
     if 'time' in notification:
         timestamp = time.strftime('%Y-%m-%d %H:%M:%S EET',
                                  time.localtime(notification['time']))
-        message_parts.append(f"_Time: {timestamp}_")
+        message_parts.append(f"<i>Time: {timestamp}</i>")
 
     return '\n'.join(message_parts)
 
@@ -112,7 +112,7 @@ def send_to_telegram(message: str) -> bool:
     payload = {
         'chat_id': TELEGRAM_CHAT_ID,
         'text': message,
-        'parse_mode': 'Markdown',
+        'parse_mode': 'HTML',
         'disable_web_page_preview': True
     }
 
@@ -179,11 +179,11 @@ def test_telegram_connection():
     logger.info("Testing Telegram connection...")
 
     test_message = (
-        "🤖 **ntfy-Telegram Forwarder Started**\n\n"
+        "🤖 <b>ntfy-Telegram Forwarder Started</b>\n\n"
         f"Monitoring topics: {', '.join(NTFY_TOPICS)}\n"
         f"Server: OCI Cairo\n"
         f"Time: {time.strftime('%Y-%m-%d %H:%M:%S EET')}\n\n"
-        "_Ready to receive alerts!_"
+        "<i>Ready to receive alerts!</i>"
     )
 
     if send_to_telegram(test_message):
