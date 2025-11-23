@@ -75,6 +75,34 @@ services:
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
 
+  # ntfy - Notification delivery server
+  ntfy:
+    image: binwiederhier/ntfy:latest
+    container_name: oci-ntfy
+    hostname: ntfy-cairo
+    restart: unless-stopped
+    volumes:
+      - ./ntfy/config:/etc/ntfy
+      - ntfy-cache:/var/cache/ntfy
+      - ntfy-data:/var/lib/ntfy
+    command:
+      - serve
+    environment:
+      - TZ=Africa/Cairo
+    ports:
+      - "8765:80"  # ntfy web UI and API
+    networks:
+      - monitoring
+      - infrastructure_files_netbird  # For Caddy reverse proxy access
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --tries=1 http://localhost:80/v1/health -O - | grep -Eo '\"healthy\"\\s*:\\s*true' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
 networks:
   monitoring:
     driver: bridge
@@ -85,3 +113,5 @@ volumes:
   netdatalib:
   netdatacache:
   loki-data:
+  ntfy-cache:
+  ntfy-data:

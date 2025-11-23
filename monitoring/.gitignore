@@ -11,6 +11,10 @@ loki/*.db
 # Promtail positions
 promtail/positions.yaml
 
+# ntfy runtime files
+ntfy/config/*.db
+ntfy/config/webpush.*
+
 # Docker volumes
 volumes/
 

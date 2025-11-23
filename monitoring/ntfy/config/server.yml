@@ -1,0 +1,64 @@
+# ntfy server configuration for OCI Server Monitoring
+# Cairo, Egypt - EET Timezone
+
+# Base URL for the ntfy server
+# Will be accessible via Caddy reverse proxy at https://notify.qubix.space
+base-url: "http://localhost:8765"
+
+# Listen address
+listen-http: ":80"
+
+# Cache settings
+cache-file: "/var/cache/ntfy/cache.db"
+cache-duration: "12h"  # Keep notifications for 12 hours
+cache-startup-queries: "SELECT 1"  # Quick startup check
+
+# Attachment settings (for future use with screenshots, logs, etc.)
+attachment-cache-dir: "/var/cache/ntfy/attachments"
+attachment-total-size-limit: "500M"
+attachment-file-size-limit: "50M"
+attachment-expiry-duration: "3h"
+
+# Visitor/rate limiting (prevent abuse)
+visitor-subscription-limit: 50
+visitor-request-limit-burst: 100
+visitor-request-limit-replenish: "10s"
+visitor-message-daily-limit: 1000
+
+# Behind proxy settings (for Caddy integration)
+behind-proxy: true
+
+# Enable web push notifications (for browser notifications)
+web-push-public-key: ""  # Will be generated on first run
+web-push-private-key: ""  # Will be generated on first run
+web-push-file: "/var/lib/ntfy/webpush.db"
+web-push-email-address: "admin@qubix.space"
+
+# Upstream base URL (for iOS/Android apps to use official ntfy.sh for mobile push)
+# We'll keep our server independent but can configure this later if needed
+upstream-base-url: ""
+
+# Logging
+log-level: info
+
+# Authentication (disabled for now, can enable later)
+# auth-file: "/var/lib/ntfy/auth.db"
+# auth-default-access: "deny-all"
+
+# SMTP settings (for email notifications - optional)
+# smtp-sender-addr: "smtp.gmail.com:587"
+# smtp-sender-user: "notify@qubix.space"
+# smtp-sender-pass: ""
+# smtp-sender-from: "ntfy <notify@qubix.space>"
+
+# Metrics (Prometheus-compatible metrics endpoint)
+enable-metrics: true
+
+# Manager interval (cleanup, stats calculation)
+manager-interval: "1m"
+
+# Message size limits
+message-size-limit: "4K"  # Standard ntfy message size
+
+# Timezone
+TZ: "Africa/Cairo"
