@@ -72,9 +72,12 @@ def format_message(notification: Dict[str, Any]) -> str:
     message_parts = []
 
     # Add priority emoji
-    priority = notification.get('priority', 'default')
-    emoji = PRIORITY_EMOJI.get(priority, PRIORITY_EMOJI['default'])
-    message_parts.append(f"{emoji} **Priority: {priority.upper()}**")
+    # ntfy sends priority as integer: 1=min, 2=low, 3=default, 4=high, 5=urgent
+    priority_int = notification.get('priority', 3)
+    priority_map = {1: 'min', 2: 'low', 3: 'default', 4: 'high', 5: 'urgent'}
+    priority_name = priority_map.get(priority_int, 'default') if isinstance(priority_int, int) else priority_int
+    emoji = PRIORITY_EMOJI.get(priority_name, PRIORITY_EMOJI['default'])
+    message_parts.append(f"{emoji} **Priority: {priority_name.upper()}**")
 
     # Add tags with emojis if present
     tags = notification.get('tags', [])
