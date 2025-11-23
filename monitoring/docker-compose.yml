@@ -31,6 +31,7 @@ services:
       - NETDATA_CLAIM_TOKEN=${NETDATA_CLAIM_TOKEN:-}
       - NETDATA_CLAIM_URL=${NETDATA_CLAIM_URL:-}
       - NETDATA_CLAIM_ROOMS=${NETDATA_CLAIM_ROOMS:-}
+      - NETDATA_WEB_BASE_URL=/monitoring
     ports:
       - "19999:19999"
     networks:
