@@ -103,6 +103,28 @@ services:
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
 
+  # Telegram Forwarder - Forwards ntfy notifications to Telegram
+  telegram-forwarder:
+    build:
+      context: ./telegram-forwarder
+      dockerfile: Dockerfile
+    container_name: oci-telegram-forwarder
+    hostname: telegram-forwarder-cairo
+    restart: unless-stopped
+    environment:
+      - TZ=Africa/Cairo
+      - NTFY_URL=http://oci-ntfy
+      - NTFY_TOPICS=${NTFY_TOPICS:-monitoring-alerts}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+    networks:
+      - monitoring
+    depends_on:
+      ntfy:
+        condition: service_healthy
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
 networks:
   monitoring:
     driver: bridge
