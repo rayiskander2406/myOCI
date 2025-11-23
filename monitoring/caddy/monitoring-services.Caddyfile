@@ -1,0 +1,106 @@
+# Caddy Configuration for Monitoring Services
+# Add these entries to your main Caddyfile on the OCI server
+
+# Netdata - Real-time Monitoring Dashboard
+# Domain: monitor.qubix.space (or your preferred subdomain)
+monitor.qubix.space {
+    # Basic authentication for security
+    # Generate hash with: caddy hash-password --plaintext yourpassword
+    basicauth {
+        admin $2a$14$REPLACE_WITH_GENERATED_HASH
+    }
+
+    # Reverse proxy to Netdata container
+    reverse_proxy oci-netdata:19999 {
+        # Preserve original request details
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+
+        # Long timeout for streaming metrics
+        transport http {
+            read_timeout 300s
+            write_timeout 300s
+        }
+    }
+
+    # Security headers
+    header {
+        # Enable HSTS
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        # Prevent clickjacking
+        X-Frame-Options "SAMEORIGIN"
+        # Prevent MIME sniffing
+        X-Content-Type-Options "nosniff"
+        # XSS Protection
+        X-XSS-Protection "1; mode=block"
+        # Referrer Policy
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+
+    # Logging
+    log {
+        output file /var/log/caddy/monitor.qubix.space.log
+        format json
+    }
+}
+
+# Grafana - Metrics and Logs Visualization
+# Domain: grafana.qubix.space (or your preferred subdomain)
+grafana.qubix.space {
+    # Note: Grafana has its own authentication, but you can add Caddy auth for extra security
+    # Uncomment the following lines if you want double authentication:
+    # basicauth {
+    #     admin $2a$14$REPLACE_WITH_GENERATED_HASH
+    # }
+
+    # Reverse proxy to Grafana container
+    reverse_proxy oci-grafana:3000 {
+        # Preserve original request details (required for Grafana)
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Forwarded-Host {host}
+
+        # WebSocket support for live updates
+        transport http {
+            read_timeout 300s
+            write_timeout 300s
+        }
+    }
+
+    # Security headers
+    header {
+        # Enable HSTS
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        # Allow Grafana iframes (for embedded dashboards)
+        # X-Frame-Options "SAMEORIGIN"  # Commented - Grafana handles this
+        # Prevent MIME sniffing
+        X-Content-Type-Options "nosniff"
+        # Referrer Policy
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+
+    # Logging
+    log {
+        output file /var/log/caddy/grafana.qubix.space.log
+        format json
+    }
+}
+
+# Optional: ntfy already configured at notify.qubix.space
+# If you need to update or verify the configuration:
+# notify.qubix.space {
+#     reverse_proxy oci-ntfy:8765 {
+#         header_up Host {host}
+#         header_up X-Real-IP {remote_host}
+#         header_up X-Forwarded-For {remote_host}
+#         header_up X-Forwarded-Proto {scheme}
+#     }
+#     log {
+#         output file /var/log/caddy/notify.qubix.space.log
+#         format json
+#     }
+# }
