@@ -1,1351 +1,2721 @@
-# TODO - Release v0.1.0 - November 24, 2025
+# TODO - Release v0.2.0 - Dependency Management System
 
 ## Overview
-This TODO list contains actionable tasks to complete the v0.1.0 release of the myOCI monitoring infrastructure. All tasks are derived from the strategic release plan in `.claude/PLANNING.md`.
+This TODO list contains actionable tasks to build a comprehensive dependency management system for the myOCI infrastructure project. This release adds version tracking, update procedures, compatibility documentation, and automation scripts to ensure predictable, safe updates across all infrastructure components.
 
-**Strategic Context**: First production release of a comprehensive monitoring stack (Netdata, Loki, Promtail, ntfy, Telegram, Grafana) for OCI server infrastructure.
+**Strategic Context**: v0.2.0 is the foundation for Phase 3 (auto-healing with Watchtower). Without robust dependency management, automated updates would be risky. This release establishes the processes and tools needed for confident, controlled updates.
+
+**Link to Strategy**: See `.claude/PLANNING.md` for complete release plan, risk analysis, and deployment strategy.
 
 ## Current Focus
-**Start with these 3 tasks first:**
-1. [BLOCKER-1] Stage and commit uncommitted monitoring changes
-2. [DOCS-1] Create root CHANGELOG.md
-3. [BLOCKER-2] Document environment variables in monitoring/README.md
+**Start with these tasks in order (Week 1 prep):**
+1. [PRE-1] Check current production versions (Netdata, ntfy)
+2. [PRE-2] Decide scope boundaries (monitoring vs full infrastructure)
+3. [PRE-3] Verify prerequisites (jq, SSH access, Docker API)
+
+**After 1-week v0.1.0 validation, begin implementation:**
+4. [BLOCKER-1] Create DEPENDENCIES.md baseline documentation
+5. [BLOCKER-2] Create UPDATE_POLICY.md procedures
 
 ---
 
-## High Priority Tasks (BLOCKERS)
+## Pre-Implementation Tasks (Before Dec 1)
 
-### [BLOCKER-1] Stage and commit uncommitted monitoring changes
+### [PRE-1] Check current production versions
 
-**Priority**: High
-**Estimated Effort**: Small
+**Priority**: High (Blocker for implementation)
+**Estimated Effort**: Small (15 minutes)
 **Dependencies**: None
 **Risk Level**: Low
 
 #### Context
-Git status shows several uncommitted changes that must be included in v0.1.0 release. These include critical bug fixes and new features from Week 2 implementation.
+Before pinning Docker image versions, we need to know what versions are currently running in production. This ensures we pin to known-stable versions, not randomly selected ones.
 
 #### Acceptance Criteria
-- [ ] All modified files staged (docker-compose.yml, forwarder.py)
-- [ ] All new files staged (MAINTENANCE.md, dashboards/*.json, maintenance.sh)
-- [ ] Commit message follows project conventions
-- [ ] Commit includes co-author tag
+- [ ] Current Netdata version identified and documented
+- [ ] Current ntfy version identified and documented
+- [ ] Version information recorded in notes for use in DEPENDENCIES.md
+- [ ] Verified versions are available in Docker registries
 
 #### Implementation Notes
-**Files to commit:**
-- `monitoring/docker-compose.yml` (modified - added Grafana service)
-- `monitoring/telegram-forwarder/forwarder.py` (modified - HTML formatting fix)
-- `monitoring/MAINTENANCE.md` (new - maintenance documentation)
-- `monitoring/grafana/dashboards/system-health.json` (new)
-- `monitoring/grafana/dashboards/container-details.json` (new)
-- `monitoring/grafana/dashboards/error-tracking.json` (new)
-- `monitoring/maintenance.sh` (new)
+**SSH to production server and run:**
+```bash
+# Check Netdata version
+docker inspect oci-netdata --format '{{.Config.Image}}'
+docker inspect oci-netdata | jq -r '.[0].Config.Labels["org.opencontainers.image.version"]' || echo "Version label not found"
 
-**Commit message template:**
+# Check ntfy version
+docker inspect oci-ntfy --format '{{.Config.Image}}'
+docker inspect oci-ntfy | jq -r '.[0].Config.Labels["version"]' || echo "Version label not found"
+
+# Alternative: Check via container logs/version commands
+docker exec oci-netdata netdata -V 2>/dev/null || echo "Command not found"
+docker exec oci-ntfy ntfy --version 2>/dev/null || echo "Command not found"
 ```
-Release v0.1.0: Complete Week 2 monitoring implementation
 
-- Add Grafana 11.0.0 visualization platform
-- Add 3 optimized dashboards (System Health, Container Details, Error Tracking)
-- Fix Telegram forwarder HTML formatting
-- Add maintenance automation system
-- Document maintenance procedures
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-
-Co-Authored-By: Claude <noreply@anthropic.com>
-```
+**Document findings:**
+- Record exact image tags currently in use
+- Record any version labels or metadata
+- If using `:latest`, record the actual SHA or version it resolves to
+- Note when versions were checked (date/time)
 
 #### Testing Requirements
-- Verify git status shows clean working tree after commit
-- Verify all new files tracked
+- Verify Docker Hub shows these versions exist and are downloadable
+- Check release notes for any known issues with these versions
 
 #### Definition of Done
-- [ ] All uncommitted changes committed
-- [ ] git status clean
-- [ ] Commit pushed to origin/main
-- [ ] Verified in git log
+- [ ] Netdata version documented (format: `vX.Y.Z` or specific tag)
+- [ ] ntfy version documented (format: `vX.Y.Z` or specific tag)
+- [ ] Notes saved for reference during DEPENDENCIES.md creation
+- [ ] Verified versions are publicly available in registries
 
 ---
 
-### [BLOCKER-2] Document environment variables in monitoring/README.md
+### [PRE-2] Decide scope boundaries for v0.2.0
 
-**Priority**: High
-**Estimated Effort**: Small
+**Priority**: High (Blocker for documentation)
+**Estimated Effort**: Small (30 minutes)
 **Dependencies**: None
 **Risk Level**: Low
 
 #### Context
-Environment variables (TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID) are required for deployment but not documented in monitoring/README.md. This is a release blocker.
+PLANNING.md Open Question Q8: Should v0.2.0 document monitoring stack only, or extend to broader infrastructure (NetBird, Caddy, Zitadel, PostgreSQL)?
+
+**Recommendation from planning**: Monitoring stack + critical dependencies (Docker, Docker Compose, Caddy)
 
 #### Acceptance Criteria
-- [ ] All required environment variables documented
-- [ ] Example values provided for each variable
-- [ ] Security warnings added for sensitive values
-- [ ] Cross-reference to .env.example added
+- [ ] Scope decision made and documented
+- [ ] Components list finalized for DEPENDENCIES.md
+- [ ] Effort estimate adjusted if scope changes
+- [ ] Documented in PLANNING.md (update Q8 with decision)
 
 #### Implementation Notes
-**Add section to monitoring/README.md:**
+**Options to decide between:**
+- **Option A**: Monitoring stack only (Netdata, Loki, Promtail, Grafana, ntfy, Telegram forwarder)
+- **Option B**: Monitoring + critical deps (above + Docker, Docker Compose, Caddy)
+- **Option C**: Full infrastructure (above + NetBird, Zitadel, PostgreSQL)
 
-```markdown
-## Environment Variables
+**Recommended**: Option B (monitoring + critical deps)
 
-The monitoring stack requires the following environment variables:
-
-### Required Variables
-
-| Variable | Description | Example | Security |
-|----------|-------------|---------|----------|
-| `TELEGRAM_BOT_TOKEN` | Bot token from @BotFather | `123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11` | SECRET - Never commit |
-| `TELEGRAM_CHAT_ID` | Your Telegram chat ID | `-1001234567890` | SENSITIVE |
-| `NTFY_TOPICS` | Topics to monitor (comma-separated) | `monitoring-alerts` | Public |
-
-### Optional Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `GRAFANA_ADMIN_USER` | Grafana admin username | `admin` |
-| `GRAFANA_ADMIN_PASSWORD` | Grafana admin password | `admin` |
-| `NETDATA_CLAIM_TOKEN` | Netdata Cloud claim token | (none) |
-
-### Configuration Steps
-
-1. Copy the example file:
-   ```bash
-   cp .env.example .env
-   ```
-
-2. Edit `.env` and fill in your values:
-   ```bash
-   nano .env
-   ```
-
-3. **IMPORTANT**: Never commit `.env` to git (already in `.gitignore`)
-
-4. For production, consider using Docker secrets or encrypted vault instead of `.env` files
-
-### Getting Telegram Credentials
-
-1. **Create bot**: Message @BotFather on Telegram, send `/newbot`
-2. **Get token**: Copy the token provided by BotFather
-3. **Get chat ID**:
-   - Message your bot
-   - Visit: `https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates`
-   - Find your chat ID in the response
-```
-
-**Files to modify:**
-- `monitoring/README.md` (add Environment Variables section)
+**Rationale**:
+- Focus on v0.2.0 scope (monitoring dependency management)
+- Include dependencies monitoring needs to function (Caddy reverse proxy, Docker runtime)
+- Defer broader infrastructure to v0.2.1 (incremental expansion)
+- Keeps initial effort manageable (15-20 hours vs 25-30 hours)
 
 #### Testing Requirements
-- Verify markdown renders correctly
+- Review components list with stakeholder (if applicable)
+- Verify no critical missing dependencies
+
+#### Definition of Done
+- [ ] Scope decision documented in PLANNING.md
+- [ ] Components list written down for reference
+- [ ] If deviating from recommendation, rationale documented
+- [ ] Committed decision to git (update PLANNING.md)
+
+---
+
+### [PRE-3] Verify prerequisites and setup
+
+**Priority**: Medium
+**Estimated Effort**: Small (15 minutes)
+**Dependencies**: None
+**Risk Level**: Low
+
+#### Context
+Scripts and documentation require certain tools and access. Verify these before starting implementation to avoid interruptions.
+
+#### Acceptance Criteria
+- [ ] `jq` installed on development machine (for JSON parsing)
+- [ ] SSH access to production server verified
+- [ ] Docker socket access confirmed (for scripts)
+- [ ] Git repository clean and up to date
+- [ ] Working directory prepared (`scripts/` directory ready to create)
+
+#### Implementation Notes
+**Check jq installation:**
+```bash
+which jq
+jq --version
+# If not installed: brew install jq (macOS) or apt-get install jq (Linux)
+```
+
+**Verify SSH access:**
+```bash
+ssh -i ~/.ssh/sshkey-netbird-private.key ubuntu@159.54.162.114 'echo "SSH access confirmed"'
+```
+
+**Check Docker API access (local):**
+```bash
+docker ps
+docker version
+```
+
+**Verify git status:**
+```bash
+cd ~/myOCI
+git status
+git pull origin main
+```
+
+**Create directories if needed:**
+```bash
+mkdir -p ~/myOCI/scripts
+ls -la ~/myOCI/scripts
+```
+
+#### Testing Requirements
+- All commands execute without errors
+- Can read/write to all necessary locations
+
+#### Definition of Done
+- [ ] All prerequisites verified working
+- [ ] Any missing tools installed
+- [ ] SSH access confirmed
+- [ ] Scripts directory created and accessible
+- [ ] Ready to begin implementation
+
+---
+
+## High Priority Tasks (Blockers - Must Complete for v0.2.0)
+
+### [BLOCKER-1] Create DEPENDENCIES.md baseline documentation
+
+**Priority**: High (Release Blocker)
+**Estimated Effort**: Large (3-4 hours)
+**Dependencies**: PRE-1 (need version info), PRE-2 (need scope decision)
+**Risk Level**: Low
+
+#### Context
+DEPENDENCIES.md is the central source of truth for all infrastructure component versions. This is the foundation document for dependency management - all other tools and processes reference it.
+
+**From PLANNING.md**: Primary deliverable, ~100-200 lines, comprehensive version tracking
+
+#### Acceptance Criteria
+- [ ] Complete monitoring stack documentation with current versions
+- [ ] Python dependencies documented (from requirements.txt)
+- [ ] System dependencies documented (Docker, Docker Compose)
+- [ ] Last verified dates included for each component
+- [ ] Links to upstream changelogs included
+- [ ] Known vulnerabilities section created (empty if none currently known)
+- [ ] Update history section created with initial baseline entry
+- [ ] Cross-referenced with docker-compose.yml versions for accuracy
+
+#### Implementation Notes
+
+**File Location**: `/Users/rayiskander/myOCI/DEPENDENCIES.md`
+
+**Document Structure**:
+```markdown
+# Infrastructure Dependencies
+
+Last Updated: [Date]
+Version: 1.0
+
+## Overview
+This document tracks all infrastructure component versions for the myOCI project. It serves as the central source of truth for dependency management, update planning, and compatibility verification.
+
+**Purpose**:
+- Track current versions of all infrastructure components
+- Document known vulnerabilities and remediation status
+- Provide update history and compatibility notes
+- Support automated version checking (scripts/check-versions.sh)
+
+**Update Frequency**: Review and update this document:
+- After any component update (immediate)
+- During monthly maintenance reviews (first Sunday of month)
+- When security vulnerabilities are discovered (immediate)
+
+---
+
+## Docker Images - Monitoring Stack
+
+| Component | Image | Current Version | Registry | Last Updated | Status | Notes |
+|-----------|-------|-----------------|----------|--------------|--------|-------|
+| Netdata | netdata/netdata | [from PRE-1] | Docker Hub | YYYY-MM-DD | ✅ Current | Real-time monitoring |
+| Loki | grafana/loki | 3.0.0 | Docker Hub | 2025-11-23 | ✅ Current | Log aggregation |
+| Promtail | grafana/promtail | 3.0.0 | Docker Hub | 2025-11-23 | ✅ Current | Log collection |
+| Grafana | grafana/grafana | 11.0.0 | Docker Hub | 2025-11-23 | ✅ Current | Visualization |
+| ntfy | binwiederhier/ntfy | [from PRE-1] | Docker Hub | YYYY-MM-DD | ✅ Current | Notifications |
+| Telegram Forwarder | python:3.11-alpine | 3.11-alpine | Docker Hub | 2025-11-23 | ✅ Current | Base image for custom forwarder |
+
+**Changelog Links**:
+- Netdata: https://github.com/netdata/netdata/releases
+- Loki: https://github.com/grafana/loki/releases
+- Promtail: https://github.com/grafana/loki/releases (same project)
+- Grafana: https://github.com/grafana/grafana/releases
+- ntfy: https://github.com/binwiederhier/ntfy/releases
+- Python: https://www.python.org/downloads/
+
+---
+
+## Python Dependencies
+
+**Telegram Forwarder** (`monitoring/telegram-forwarder/requirements.txt`):
+| Package | Version | Purpose | Last Updated | Security Status |
+|---------|---------|---------|--------------|-----------------|
+| requests | 2.31.0 | HTTP client for Telegram API | 2025-11-23 | ✅ No known CVEs |
+
+**Security Notes**:
+- requests 2.31.0 is the latest stable version as of Nov 2023
+- No known vulnerabilities affecting our usage
+- Monitor: https://github.com/psf/requests/security/advisories
+
+---
+
+## System Dependencies
+
+| Component | Version | Purpose | Verification Command |
+|-----------|---------|---------|----------------------|
+| Docker Engine | 24.0+ | Container runtime | `docker --version` |
+| Docker Compose | 2.20+ | Multi-container orchestration | `docker-compose --version` |
+| Bash | 4.0+ | Script execution | `bash --version` |
+| jq | 1.6+ | JSON parsing in scripts | `jq --version` |
+
+**Installation Requirements**:
+- Docker Engine 20.10+ minimum, 24.0+ recommended
+- Docker Compose v2 syntax required (using `docker-compose` or `docker compose`)
+- jq required for version check scripts
+
+---
+
+## Infrastructure Dependencies (Critical)
+
+| Component | Version | Purpose | Location | Update Frequency |
+|-----------|---------|---------|----------|------------------|
+| Caddy | [TBD] | Reverse proxy for web access | infrastructure_files | As needed |
+| NetBird Network | [TBD] | VPN overlay network | infrastructure_files | As needed |
+
+**Note**: Full infrastructure dependencies (NetBird, Zitadel, PostgreSQL) to be documented in v0.2.1. Current scope focuses on monitoring stack and critical dependencies.
+
+---
+
+## Known Vulnerabilities
+
+**Current Status**: ✅ No known vulnerabilities affecting deployed versions
+
+**Monitoring Sources**:
+- GitHub Security Advisories for each component
+- Docker Hub security scanning results
+- CVE databases (NVD, CVE.org)
+- Vendor security mailing lists
+
+**Last Checked**: YYYY-MM-DD
+
+**Process**: See UPDATE_POLICY.md for vulnerability response procedures.
+
+---
+
+## Update History
+
+### 2025-11-24 - v0.2.0 Baseline
+- **Action**: Initial dependency documentation created
+- **Changes**: Established baseline for all monitoring stack components
+- **Versions Pinned**:
+  - Netdata: latest → [specific version from PRE-1]
+  - ntfy: latest → [specific version from PRE-1]
+- **Reason**: Establishing dependency management foundation
+- **Risk**: Low - documenting existing production state
+- **Outcome**: Baseline established successfully
+
+### 2025-11-23 - v0.1.0 Initial Deployment
+- **Action**: Monitoring stack deployed to production
+- **Components**: Netdata, Loki 3.0.0, Promtail 3.0.0, Grafana 11.0.0, ntfy, Telegram forwarder
+- **Note**: Netdata and ntfy deployed with `:latest` tags (to be pinned in v0.2.0)
+
+---
+
+## Compatibility Notes
+
+### Loki + Promtail
+- **Requirement**: Loki and Promtail versions MUST match
+- **Current**: Both at 3.0.0 (compatible)
+- **Reason**: Same codebase, API compatibility guaranteed within same version
+
+### Grafana + Loki
+- **Requirement**: Grafana 11.x compatible with Loki 3.x
+- **Current**: Grafana 11.0.0 + Loki 3.0.0 (compatible)
+- **Reference**: https://grafana.com/docs/loki/latest/setup/upgrade/
+
+### Python + requests
+- **Requirement**: Python 3.11+ for requests 2.31.0
+- **Current**: Python 3.11-alpine (compatible)
+
+See COMPATIBILITY_MATRIX.md for comprehensive version compatibility matrix.
+
+---
+
+## Version Check Automation
+
+This document is used by `scripts/check-versions.sh` to compare running versions against documented baseline.
+
+**Run version check:**
+```bash
+cd ~/myOCI
+bash scripts/check-versions.sh
+```
+
+**Expected Output**: Report showing current vs baseline versions, flagging any mismatches.
+
+---
+
+## Contributing Updates
+
+When updating component versions:
+
+1. **Test Update First**: Follow UPDATE_POLICY.md testing procedures
+2. **Update This Document**: Modify version numbers and dates
+3. **Add Update History Entry**: Document what changed and why
+4. **Update COMPATIBILITY_MATRIX.md**: If compatibility changes
+5. **Update CHANGELOG.md**: For release notes
+6. **Commit Changes**: `git commit -m "Update [component] from vX to vY"`
+
+---
+
+## References
+
+- **Update Procedures**: UPDATE_POLICY.md
+- **Compatibility Matrix**: COMPATIBILITY_MATRIX.md
+- **Security Hardening**: monitoring/SECURITY.md
+- **Backup Procedures**: monitoring/BACKUP.md
+- **Version Check Script**: scripts/check-versions.sh
+
+---
+
+**Document Version**: 1.0
+**Created**: 2025-11-24 (v0.2.0)
+**Last Updated**: 2025-11-24
+**Next Review**: 2025-12-24 (monthly review)
+```
+
+**Files to reference while writing**:
+- `monitoring/docker-compose.yml` - Current image definitions
+- `monitoring/telegram-forwarder/requirements.txt` - Python dependencies
+- Notes from PRE-1 - Production version info
+- Scope decision from PRE-2 - What to include
+
+#### Testing Requirements
+- Cross-check all version numbers against docker-compose.yml
+- Verify all upstream changelog links work
+- Verify document renders correctly in Markdown viewer
+- Check for typos and formatting errors
+
+#### Definition of Done
+- [ ] Complete document created with all sections
+- [ ] All monitoring stack versions documented accurately
+- [ ] Python dependencies documented
+- [ ] System dependencies listed
+- [ ] Changelog links verified working
+- [ ] Update history includes v0.2.0 baseline entry
+- [ ] File created at correct path
+- [ ] Markdown formatting correct (no rendering errors)
+- [ ] Cross-referenced with docker-compose.yml (versions match)
+- [ ] Committed to git with message: "Add DEPENDENCIES.md - v0.2.0 baseline"
+
+---
+
+### [BLOCKER-2] Create UPDATE_POLICY.md procedures
+
+**Priority**: High (Release Blocker)
+**Estimated Effort**: Large (2-3 hours)
+**Dependencies**: None (can work in parallel with BLOCKER-1)
+**Risk Level**: Low
+
+#### Context
+UPDATE_POLICY.md formalizes update strategy and procedures. Critical for safe updates, especially before enabling Watchtower auto-updates in v0.3.0.
+
+**From PLANNING.md**: Primary deliverable, ~150-250 lines, policy and procedures
+
+#### Acceptance Criteria
+- [ ] Update frequency guidelines defined (security vs feature)
+- [ ] Risk classification system documented (Critical/High/Medium/Low)
+- [ ] Pre-update testing checklist created
+- [ ] Staged rollout procedures documented
+- [ ] Rollback procedures documented with clear criteria
+- [ ] Maintenance window scheduling policy defined
+- [ ] Stakeholder communication templates included
+- [ ] Security vulnerability tracking process documented
+- [ ] Response SLAs defined (Critical: 24h, High: 7d, Medium: 30d)
+
+#### Implementation Notes
+
+**File Location**: `/Users/rayiskander/myOCI/UPDATE_POLICY.md`
+
+**Document Structure**:
+```markdown
+# Update Policy & Procedures
+
+Version: 1.0
+Last Updated: 2025-11-24
+Status: Active
+
+## Overview
+
+This document defines policies and procedures for updating infrastructure components in the myOCI project. It ensures updates are performed safely, predictably, and with minimal risk to production services.
+
+**Scope**: All infrastructure components documented in DEPENDENCIES.md
+
+**Objectives**:
+- Maintain security through timely patching
+- Minimize disruption through careful planning
+- Enable rapid rollback if issues occur
+- Provide clear communication to stakeholders
+
+---
+
+## Update Frequency Guidelines
+
+### Security Updates
+**Frequency**: As soon as possible after verification
+**Maximum Delay**: Based on severity (see SLAs below)
+**Rationale**: Security vulnerabilities pose immediate risk
+
+**Process**:
+1. Security advisory received/discovered
+2. Assess severity and impact (see Risk Classification below)
+3. Test update in non-production (if possible)
+4. Deploy within SLA window
+5. Monitor for 24-48 hours
+6. Document in DEPENDENCIES.md
+
+### Feature Updates
+**Frequency**: Monthly review cycle (first Sunday of month)
+**Exceptions**: Critical bug fixes may be expedited
+**Rationale**: Balance new features with stability
+
+**Process**:
+1. Review available updates during monthly maintenance
+2. Assess value vs risk
+3. Schedule for next maintenance window
+4. Test thoroughly before production
+5. Deploy during scheduled window
+6. Monitor for 1 week
+
+### Patch Updates
+**Frequency**: Quarterly or as needed
+**Exceptions**: If patch addresses bugs affecting our use case
+**Rationale**: Lower risk, lower urgency
+
+**Process**:
+1. Accumulate patch updates over quarter
+2. Review and batch during quarterly maintenance
+3. Test combined updates
+4. Deploy during scheduled window
+
+---
+
+## Risk Classification
+
+### Critical (Immediate Action)
+**Characteristics**:
+- Actively exploited vulnerability (CVE CVSS 9.0+)
+- Data loss or corruption risk
+- Service unavailability affecting critical functions
+- Public disclosure of zero-day vulnerability
+
+**Response SLA**: 24 hours
+**Approval**: System administrator (expedited process)
+**Testing**: Minimal - verify service starts and basic functionality
+**Communication**: Immediate notification to all stakeholders
+
+**Example**: Remote code execution vulnerability in Grafana with active exploits
+
+---
+
+### High (Urgent)
+**Characteristics**:
+- Security vulnerability (CVE CVSS 7.0-8.9)
+- Major bug fix addressing service instability
+- Performance issue causing degradation
+- Dependency with known security issue
+
+**Response SLA**: 7 days
+**Approval**: System administrator
+**Testing**: Standard testing checklist (see below)
+**Communication**: Notify stakeholders 48 hours before deployment
+
+**Example**: Authentication bypass vulnerability, no active exploits yet
+
+---
+
+### Medium (Planned)
+**Characteristics**:
+- Minor security issue (CVE CVSS 4.0-6.9)
+- Feature updates with useful enhancements
+- Bug fixes for non-critical issues
+- Dependency updates for maintenance
+
+**Response SLA**: 30 days
+**Approval**: System administrator + team review
+**Testing**: Full testing including compatibility checks
+**Communication**: Include in monthly update communication
+
+**Example**: New dashboard features in Grafana, optional UI improvements
+
+---
+
+### Low (Opportunistic)
+**Characteristics**:
+- Minor improvements or cosmetic changes
+- Dependency updates with no functional changes
+- Documentation updates
+- Optional feature additions
+
+**Response SLA**: 90 days or next major release
+**Approval**: Standard review process
+**Testing**: Full testing suite
+**Communication**: Include in quarterly planning
+
+**Example**: Updated logo, minor UI polish, dependency version bumps
+
+---
+
+## Pre-Update Testing Checklist
+
+### Phase 1: Pre-Deployment Research
+- [ ] **Review Changelog**: Read upstream release notes thoroughly
+- [ ] **Check Breaking Changes**: Identify any breaking changes or migrations
+- [ ] **Verify Compatibility**: Check COMPATIBILITY_MATRIX.md for known issues
+- [ ] **Assess Risk**: Classify update using Risk Classification above
+- [ ] **Check Dependencies**: Ensure dependent components are compatible
+- [ ] **Review Issues**: Check GitHub issues for reports of problems with new version
+
+### Phase 2: Local/Staging Testing (If Available)
+- [ ] **Backup Configuration**: Create backup of current config
+- [ ] **Pull New Image**: `docker pull <image>:<new-version>`
+- [ ] **Update Config**: Modify docker-compose.yml with new version
+- [ ] **Test Startup**: Verify container starts without errors
+- [ ] **Check Logs**: Review logs for warnings or errors
+- [ ] **Test Functionality**: Verify key features work (dashboards, alerts, logging)
+- [ ] **Check Resource Usage**: Monitor CPU, memory, disk usage
+- [ ] **Test Integration**: Verify communication with dependent services
+- [ ] **Document Findings**: Note any issues or changes in behavior
+
+### Phase 3: Production Deployment Preparation
+- [ ] **Schedule Maintenance Window**: Coordinate with stakeholders (if needed)
+- [ ] **Prepare Rollback Plan**: Ensure quick rollback possible (see Rollback section)
+- [ ] **Backup Production State**: Backup configs, volumes (see BACKUP.md)
+- [ ] **Notify Stakeholders**: Send deployment notification (see Communication section)
+- [ ] **Prepare Monitoring**: Set up extra monitoring during deployment
+- [ ] **Document Procedure**: Have step-by-step deployment plan ready
+
+### Phase 4: Production Deployment
+- [ ] **Apply Update**: Follow deployment procedure
+- [ ] **Monitor Startup**: Watch logs during startup (5-10 minutes)
+- [ ] **Run Health Checks**: Execute health check script
+- [ ] **Verify Functionality**: Test critical paths (dashboards, logs, alerts)
+- [ ] **Monitor Performance**: Watch resource usage for 1 hour
+- [ ] **Check Integrations**: Verify all dependent services working
+- [ ] **Document Outcome**: Record success or issues in DEPENDENCIES.md
+
+### Phase 5: Post-Deployment Validation
+- [ ] **24-Hour Monitoring**: Watch for issues over first day
+- [ ] **1-Week Review**: Verify stability over extended period
+- [ ] **Update Documentation**: Update DEPENDENCIES.md, CHANGELOG.md
+- [ ] **Communicate Success**: Send completion notification
+- [ ] **Archive Backups**: Move backups to long-term storage
+
+---
+
+## Staged Rollout Procedures
+
+For high-risk updates, consider staged rollout:
+
+### Stage 1: Non-Critical Service (Optional)
+If multiple instances available, update least-critical first.
+
+**Example**: Update monitoring stack on development server before production
+
+### Stage 2: Single Component
+Update one component, monitor, then proceed to others.
+
+**Process**:
+1. Update component A
+2. Monitor for 24-48 hours
+3. If stable, update component B
+4. Continue pattern
+
+**Example**: Update Loki, wait, then update Promtail
+
+### Stage 3: Off-Peak Deployment
+Deploy during low-usage periods to minimize impact.
+
+**Recommended Windows**:
+- **Weekdays**: Tuesday-Thursday, 2-4 AM EET (Cairo time)
+- **Avoid**: Friday-Monday (weekend issues harder to address)
+- **Avoid**: During known high-usage periods
+
+### Stage 4: Canary Deployment (Future)
+For future multi-instance deployments, consider canary pattern:
+- Deploy to 10% of instances
+- Monitor for issues
+- Gradually increase to 100%
+
+**Note**: Current single-server deployment doesn't support canary, but document for future scaling
+
+---
+
+## Rollback Procedures
+
+### When to Rollback
+
+**Immediate Rollback Triggers**:
+- Service fails to start after update
+- Critical functionality broken (dashboards, alerting, logging)
+- Data loss or corruption detected
+- Performance degradation >50%
+- Security issue introduced by update
+- Cascade failures affecting other services
+
+**Evaluation Period**:
+- First 1 hour: High sensitivity - rollback quickly
+- First 24 hours: Medium sensitivity - evaluate carefully
+- After 1 week: Low sensitivity - update considered stable
+
+### Rollback Procedure
+
+#### Step 1: Assess Situation
+```bash
+# Check service status
+docker ps --filter name=oci-
+docker-compose ps
+
+# Check logs for errors
+docker-compose logs --tail=100 <service-name>
+
+# Check resource usage
+docker stats --no-stream
+
+# Test critical functionality
+curl -I http://localhost:19999  # Netdata
+curl -I http://localhost:3000   # Grafana
+curl http://localhost:8765/v1/health  # ntfy
+```
+
+#### Step 2: Decide Rollback or Fix-Forward
+**Rollback if**:
+- Critical functionality broken
+- Can't identify root cause quickly (>30 minutes)
+- Fix would take significant time
+- Multiple failures or cascading issues
+
+**Fix-Forward if**:
+- Minor issue with known fix
+- Can resolve in <15 minutes
+- Rollback would be more disruptive
+- Issue is cosmetic or non-critical
+
+#### Step 3: Execute Rollback
+```bash
+cd ~/myOCI/monitoring
+
+# Restore previous docker-compose.yml
+cp docker-compose.backup.yml docker-compose.yml
+
+# Recreate containers with old version
+docker-compose down
+docker-compose up -d
+
+# Monitor startup
+docker-compose logs -f --tail=50
+
+# Verify services healthy
+docker-compose ps
+bash ~/myOCI/scripts/check-versions.sh
+```
+
+#### Step 4: Verify Rollback Success
+```bash
+# Check all services running
+docker ps --filter name=oci-
+
+# Test functionality
+curl http://localhost:19999
+curl http://localhost:3000
+curl http://localhost:8765/v1/health
+
+# Send test notification
+curl -d "Rollback verification test" http://localhost:8765/oci-info
+```
+
+#### Step 5: Post-Rollback Actions
+- [ ] Document what went wrong in incident log
+- [ ] Update DEPENDENCIES.md with rollback event
+- [ ] Notify stakeholders of rollback
+- [ ] File issue with upstream project (if bug)
+- [ ] Schedule investigation and retry (if appropriate)
+- [ ] Review and improve testing procedures to catch issue earlier
+
+### Recovery Time Objectives
+
+| Scenario | Target RTO | Notes |
+|----------|-----------|-------|
+| Version pin rollback | < 5 minutes | Simple docker-compose.yml restore |
+| Configuration rollback | < 10 minutes | Restore config files + restart |
+| Data corruption | < 1 hour | Restore from backup (see BACKUP.md) |
+| Complete rebuild | < 4 hours | Worst case: rebuild from scratch |
+
+---
+
+## Maintenance Window Scheduling
+
+### Regular Maintenance Windows
+
+**Monthly Maintenance**: First Sunday of month, 2-4 AM EET
+**Purpose**: Feature updates, non-critical patches, system cleanup
+**Duration**: Up to 2 hours
+**Notification**: 1 week advance notice
+
+**Quarterly Maintenance**: First Sunday of Q1/Q2/Q3/Q4, 2-6 AM EET
+**Purpose**: Major updates, accumulated patches, system audits
+**Duration**: Up to 4 hours
+**Notification**: 2 weeks advance notice
+
+### Emergency Maintenance Windows
+
+**Critical Security Updates**: Within 24 hours of discovery
+**Purpose**: Address critical vulnerabilities
+**Duration**: As needed
+**Notification**: Best effort (may be <2 hours)
+
+### Maintenance Window Procedures
+
+#### Before Window Opens
+- [ ] Review planned changes
+- [ ] Verify backups current
+- [ ] Prepare rollback plans
+- [ ] Test procedures in non-production (if possible)
+- [ ] Send reminder notification 24 hours before
+
+#### During Window
+- [ ] Record start time
+- [ ] Execute changes following checklist
+- [ ] Document all actions taken
+- [ ] Test after each change
+- [ ] Monitor for issues
+
+#### After Window Closes
+- [ ] Verify all services operational
+- [ ] Send completion notification
+- [ ] Update documentation
+- [ ] Schedule follow-up monitoring
+- [ ] Review what went well / what to improve
+
+---
+
+## Stakeholder Communication
+
+### Communication Templates
+
+#### Pre-Deployment Notification (1 week before)
+
+**Subject**: myOCI Maintenance Window - [Date] - [Component] Update
+
+**Body**:
+```
+Hello,
+
+A maintenance window is scheduled for the myOCI monitoring infrastructure:
+
+**Date**: [Day], [Date] [Month] 2025
+**Time**: [Start] - [End] EET (Cairo time)
+**Duration**: Approximately [X] hours
+**Impact**: [None expected / Brief interruptions / Service unavailable]
+
+**Changes Planned**:
+- Update [Component] from vX.Y.Z to vA.B.C
+- Reason: [Security fix / Feature update / Bug fix]
+- Risk Level: [Low / Medium / High]
+
+**Expected Impact**:
+- [Service Name]: [Impact description]
+- Dashboards: [May reload / Will remain available / Brief downtime]
+- Alerting: [Unaffected / May have delays / Will be unavailable]
+
+**Rollback Plan**:
+[Brief description of rollback procedure and estimated time]
+
+**Testing**:
+[Summary of pre-deployment testing completed]
+
+If you have concerns or conflicts, please reply by [Date - 48 hours before].
+
+Thank you,
+[Your Name]
+Infrastructure Team
+```
+
+#### Deployment Completion Notification
+
+**Subject**: myOCI Maintenance Complete - [Component] Update Successful
+
+**Body**:
+```
+Hello,
+
+The scheduled maintenance for myOCI monitoring infrastructure has been completed successfully.
+
+**Completed**: [Date] at [Time] EET
+**Duration**: [Actual time taken]
+**Status**: ✅ Successful
+
+**Changes Applied**:
+- Updated [Component] from vX.Y.Z to vA.B.C
+- [Any other changes]
+
+**Verification**:
+- All services operational
+- Dashboards accessible
+- Alerting functional
+- No errors detected
+
+**Monitoring**:
+We will continue monitoring the system closely for the next 24-48 hours.
+
+**Documentation Updated**:
+- DEPENDENCIES.md: Version numbers updated
+- CHANGELOG.md: Changes recorded
+
+If you notice any issues, please report immediately to [contact].
+
+Thank you for your patience.
+
+[Your Name]
+Infrastructure Team
+```
+
+#### Emergency Update Notification
+
+**Subject**: [URGENT] myOCI Security Update - [Component]
+
+**Body**:
+```
+Hello,
+
+An urgent security update is required for the myOCI monitoring infrastructure:
+
+**Component**: [Component Name]
+**Vulnerability**: [CVE ID or description]
+**Severity**: [Critical / High]
+**Deployment**: [Date/Time - within 24 hours]
+
+**Risk if Not Updated**:
+[Brief description of security risk]
+
+**Expected Impact**:
+[Brief description of deployment impact - typically <5 minutes]
+
+**Update will be performed**:
+[Date] at [Time] EET
+
+Due to the critical nature, this update cannot be delayed. Rollback plan is in place if issues occur.
+
+More details: [Link to advisory]
+
+Questions or concerns: [Contact]
+
+[Your Name]
+Infrastructure Team
+```
+
+---
+
+## Security Vulnerability Tracking
+
+### Vulnerability Sources
+
+**Monitor these sources regularly**:
+
+1. **GitHub Security Advisories**
+   - Watch repositories for all components
+   - Enable security alerts on GitHub
+   - Check: https://github.com/[org]/[repo]/security/advisories
+
+2. **Docker Hub Security Scanning**
+   - Review scan results for images
+   - Check: https://hub.docker.com/r/[image]/tags
+
+3. **CVE Databases**
+   - National Vulnerability Database: https://nvd.nist.gov/
+   - CVE.org: https://cve.org/
+   - Search for: component name + version
+
+4. **Vendor Security Mailing Lists**
+   - Subscribe to security announcements for each component
+   - Grafana Labs Security: security@grafana.com
+   - Netdata Security: security@netdata.cloud
+
+5. **Security News**
+   - Hacker News security posts
+   - Reddit r/netsec
+   - Security-focused newsletters
+
+### Vulnerability Assessment
+
+When vulnerability discovered:
+
+1. **Identify Affected Components**
+   - Which versions are vulnerable?
+   - Are we running affected version? (check DEPENDENCIES.md)
+   - What functionality is affected?
+
+2. **Assess Severity**
+   - CVSS score (if available)
+   - Exploitability (are there known exploits?)
+   - Impact on our deployment
+   - Network exposure (internal only vs internet-facing)
+
+3. **Determine Response**
+   - Apply Risk Classification (Critical/High/Medium/Low)
+   - Set response timeline based on SLA
+   - Identify mitigation options (update, workaround, disable feature)
+
+4. **Document Assessment**
+   - Record in DEPENDENCIES.md "Known Vulnerabilities" section
+   - Include: CVE ID, severity, affected versions, status, plan
+
+### Response SLAs
+
+| Severity | Assessment | Testing | Deployment | Total |
+|----------|------------|---------|------------|-------|
+| Critical (CVSS 9.0+) | 2 hours | 4 hours | 18 hours | 24 hours |
+| High (CVSS 7.0-8.9) | 24 hours | 48 hours | 72 hours | 7 days |
+| Medium (CVSS 4.0-6.9) | 1 week | 2 weeks | 1 week | 30 days |
+| Low (CVSS <4.0) | As needed | As needed | Next cycle | 90 days |
+
+### Patching Process
+
+1. **Evaluate Patch**
+   - Read security advisory and patch notes
+   - Understand what the patch fixes
+   - Check for side effects or breaking changes
+
+2. **Test Patch**
+   - Follow Pre-Update Testing Checklist
+   - Verify patch fixes vulnerability
+   - Ensure no regressions
+
+3. **Deploy Patch**
+   - Follow appropriate update procedure based on severity
+   - Use expedited process for Critical/High
+   - Monitor closely after deployment
+
+4. **Verify Patch**
+   - Confirm vulnerability no longer exploitable
+   - Run vulnerability scanner if available
+   - Document patch success in DEPENDENCIES.md
+
+5. **Communicate**
+   - Notify stakeholders of patch deployment
+   - Include: what was patched, why, impact
+   - Reference CVE ID for tracking
+
+---
+
+## Version Pinning Policy
+
+**Policy**: All Docker images MUST use specific version tags, not `:latest`
+
+**Rationale**:
+- Predictable behavior across restarts
+- Controlled updates with testing
+- Clear documentation of what's running
+- Prerequisite for Watchtower auto-updates (v0.3.0)
+
+**Implementation**:
+- Current v0.2.0: Pin Netdata and ntfy (last two using `:latest`)
+- Format: `image:vX.Y.Z` or `image:X.Y.Z` (follow upstream convention)
+- Document in DEPENDENCIES.md
+
+**Exceptions**: None - all images must be pinned
+
+**Enforcement**: scripts/check-versions.sh will flag `:latest` tags
+
+---
+
+## Automation (Future Enhancements)
+
+### v0.3.0: Watchtower Auto-Updates
+**Plan**: Enable Watchtower for automated updates
+**Preparation**: This update policy provides foundation
+**Configuration**:
+- Monitor-only mode initially
+- Notification before updates
+- Gradual rollout based on update risk classification
+
+### v0.2.1+: Update Notifications
+**Plan**: Automated weekly check for available updates
+**Implementation**: Cron job running scripts/check-versions.sh
+**Notification**: Telegram message if updates available
+**Action**: Review and schedule during next maintenance window
+
+---
+
+## References
+
+- **Dependency Documentation**: DEPENDENCIES.md
+- **Compatibility Matrix**: COMPATIBILITY_MATRIX.md
+- **Backup Procedures**: monitoring/BACKUP.md
+- **Security Hardening**: monitoring/SECURITY.md
+- **Version Check Script**: scripts/check-versions.sh
+- **Maintenance Automation**: monitoring/maintenance.sh
+
+---
+
+## Document History
+
+| Version | Date | Author | Changes |
+|---------|------|--------|---------|
+| 1.0 | 2025-11-24 | Claude Code | Initial release (v0.2.0) |
+
+**Next Review**: 2025-12-24 (1 month)
+**Review Frequency**: Quarterly or after major updates
+```
+
+#### Testing Requirements
+- Review procedures for completeness
+- Verify communication templates are clear
+- Check risk classification makes sense
+- Ensure SLAs are realistic
+
+#### Definition of Done
+- [ ] Complete document created with all sections
+- [ ] Update frequency guidelines clear
+- [ ] Risk classification well-defined
+- [ ] Pre-update testing checklist comprehensive
+- [ ] Rollback procedures detailed and actionable
+- [ ] Communication templates ready to use
+- [ ] Security vulnerability tracking documented
+- [ ] Response SLAs defined clearly
+- [ ] File created at correct path
+- [ ] Markdown formatting correct
+- [ ] Committed to git with message: "Add UPDATE_POLICY.md - formalized update procedures"
+
+---
+
+### [BLOCKER-3] Create COMPATIBILITY_MATRIX.md
+
+**Priority**: High (Release Blocker)
+**Estimated Effort**: Medium (2-3 hours)
+**Dependencies**: BLOCKER-1 (need version info from DEPENDENCIES.md)
+**Risk Level**: Low
+
+#### Context
+COMPATIBILITY_MATRIX.md documents which versions work together. Critical for preventing incompatible combinations, especially for tightly coupled components like Loki + Promtail.
+
+**From PLANNING.md**: ~100-150 lines, version compatibility documentation
+
+#### Acceptance Criteria
+- [ ] Current baseline documented as "Tested Combination"
+- [ ] Known incompatibilities documented (if any)
+- [ ] Major version upgrade paths documented
+- [ ] Loki + Promtail version relationship clearly stated
+- [ ] Grafana + Loki compatibility noted
+- [ ] Python + requests compatibility noted
+- [ ] Cross-references to upstream docs included
+- [ ] Breaking changes between major versions documented
+
+#### Implementation Notes
+
+**File Location**: `/Users/rayiskander/myOCI/COMPATIBILITY_MATRIX.md`
+
+**Research needed**:
+- Check Loki documentation for Promtail compatibility requirements
+- Check Grafana documentation for Loki datasource compatibility
+- Review upstream docs for known incompatibilities
+- Document current baseline as "known good" configuration
+
+**Document Structure**:
+```markdown
+# Compatibility Matrix
+
+Version: 1.0
+Last Updated: 2025-11-24
+Last Tested: 2025-11-24
+
+## Overview
+
+This document tracks version compatibility for infrastructure components. Use this matrix when planning updates to ensure compatible version combinations.
+
+**Purpose**:
+- Prevent incompatible version combinations
+- Document tested configurations
+- Provide upgrade paths for major versions
+- Reference breaking changes
+
+**Update When**:
+- After testing new version combinations
+- When upstream documents incompatibilities
+- After major version upgrades
+- During quarterly compatibility reviews
+
+---
+
+## Tested Configurations
+
+### Current Production Baseline (v0.2.0)
+
+✅ **Fully Tested and Working**
+
+| Component | Version | Notes |
+|-----------|---------|-------|
+| Netdata | [from DEPENDENCIES.md] | Real-time monitoring |
+| Loki | 3.0.0 | Log aggregation |
+| Promtail | 3.0.0 | MUST match Loki version |
+| Grafana | 11.0.0 | Compatible with Loki 3.x |
+| ntfy | [from DEPENDENCIES.md] | Notification server |
+| Python | 3.11-alpine | Base for Telegram forwarder |
+| requests | 2.31.0 | Requires Python 3.7+ |
+| Docker | 24.0+ | Container runtime |
+| Docker Compose | 2.20+ | v2 syntax required |
+
+**Test Date**: 2025-11-23 (v0.1.0) and 2025-11-24 (v0.2.0)
+**Stability**: ✅ Stable in production
+**Issues**: None known
+**Recommendation**: Safe baseline for future updates
+
+---
+
+## Component Compatibility Rules
+
+### Loki + Promtail (CRITICAL)
+
+**Rule**: Loki and Promtail versions MUST be identical
+
+**Rationale**: Same codebase, tightly coupled API
+
+**Compatible Pairs**:
+| Loki Version | Promtail Version | Status |
+|--------------|------------------|--------|
+| 3.0.0 | 3.0.0 | ✅ Current (tested) |
+| 2.9.x | 2.9.x | ✅ Previous stable |
+| 2.8.x | 2.8.x | ✅ Older stable |
+
+**Incompatible Pairs**:
+| Loki Version | Promtail Version | Issue |
+|--------------|------------------|-------|
+| 3.x | 2.x | ❌ API incompatibility |
+| 2.x | 3.x | ❌ Protocol mismatch |
+| Different minor versions | Different minor versions | ⚠️ May work but unsupported |
+
+**Upgrade Path**:
+1. Plan Loki + Promtail upgrade together
+2. Test new version pair in staging
+3. Deploy both simultaneously
+4. Never run mismatched versions in production
+
+**References**:
+- https://grafana.com/docs/loki/latest/setup/upgrade/
+- https://grafana.com/docs/loki/latest/send-data/promtail/
+
+---
+
+### Grafana + Loki
+
+**Rule**: Grafana 11.x compatible with Loki 3.x
+
+**Rationale**: Loki datasource plugin compatibility
+
+**Compatible Pairs**:
+| Grafana Version | Loki Version | Status |
+|-----------------|--------------|--------|
+| 11.0.0 | 3.0.0 | ✅ Current (tested) |
+| 11.x | 3.x | ✅ Expected compatible |
+| 10.x | 2.9.x | ✅ Previous stable |
+| 9.x | 2.8.x | ✅ Older stable |
+
+**Incompatible Pairs**:
+| Grafana Version | Loki Version | Issue |
+|-----------------|--------------|-------|
+| <9.0 | 3.x | ❌ Datasource plugin too old |
+| 11.x | <2.8 | ⚠️ May work but deprecated |
+
+**Upgrade Path**:
+- Loki upgrades generally don't require Grafana upgrade
+- Grafana upgrades maintain backwards compatibility with older Loki
+- Recommended: Keep Grafana relatively current for best experience
+
+**References**:
+- https://grafana.com/docs/grafana/latest/datasources/loki/
+- https://grafana.com/docs/loki/latest/operations/grafana/
+
+---
+
+### Python + requests
+
+**Rule**: requests 2.31.0 requires Python 3.7+
+
+**Rationale**: requests library uses Python 3.7+ features
+
+**Compatible Pairs**:
+| Python Version | requests Version | Status |
+|----------------|------------------|--------|
+| 3.11-alpine | 2.31.0 | ✅ Current (tested) |
+| 3.10+ | 2.31.0 | ✅ Compatible |
+| 3.7-3.9 | 2.31.0 | ✅ Compatible (older Python) |
+
+**Incompatible Pairs**:
+| Python Version | requests Version | Issue |
+|----------------|------------------|-------|
+| <3.7 | 2.31.0 | ❌ Syntax/feature incompatibility |
+| Any | <2.28 | ⚠️ Security vulnerabilities |
+
+**Upgrade Path**:
+- Keep Python on latest stable minor version (currently 3.11)
+- Keep requests on latest stable version (currently 2.31.0)
+- Update Python minor version with testing
+
+**References**:
+- https://requests.readthedocs.io/en/latest/
+- https://pypi.org/project/requests/
+
+---
+
+### Docker + Docker Compose
+
+**Rule**: Docker 20.10+ and Docker Compose v2 required
+
+**Rationale**: Modern Docker features, v2 compose syntax
+
+**Compatible Pairs**:
+| Docker Version | Docker Compose Version | Status |
+|----------------|------------------------|--------|
+| 24.0+ | 2.20+ | ✅ Current recommended |
+| 23.0+ | 2.10+ | ✅ Compatible |
+| 20.10+ | 2.0+ | ✅ Minimum supported |
+
+**Incompatible Pairs**:
+| Docker Version | Docker Compose Version | Issue |
+|----------------|------------------------|-------|
+| <20.10 | Any v2 | ❌ Missing features |
+| Any | v1.x | ❌ Deprecated syntax |
+
+**Upgrade Path**:
+- Use Docker Desktop (bundled) or install separately
+- Migrate from docker-compose v1 to v2 if needed
+- Test compose files with `docker-compose config` after upgrade
+
+**References**:
+- https://docs.docker.com/compose/
+- https://docs.docker.com/engine/release-notes/
+
+---
+
+## Breaking Changes by Version
+
+### Loki 3.0.0 (From 2.x)
+
+**Breaking Changes**:
+- Schema change: TSDB (v13) is default
+- Configuration changes: Some fields removed/renamed
+- API changes: Some endpoints deprecated
+
+**Migration Path**:
+1. Backup Loki data (or accept data loss for logs)
+2. Update Loki configuration for v3.0 syntax
+3. Update Promtail to matching 3.0.0 version
+4. Test configuration: `docker-compose config`
+5. Deploy with monitoring
+6. Verify log ingestion working
+
+**References**:
+- https://grafana.com/docs/loki/latest/setup/upgrade/upgrade-to-3.0/
+
+**Our Experience** (v0.1.0 deployment):
+- ✅ TSDB schema (v13) works well
+- ✅ 24-hour retention policy performs well
+- ⚠️ Had to update config syntax (delete_request_store)
+- ⚠️ Previous data not migrated (accepted for new deployment)
+
+---
+
+### Grafana 11.0.0 (From 10.x)
+
+**Breaking Changes**:
+- Some panel types deprecated
+- AngularJS plugins no longer supported
+- Some configuration options changed
+
+**Migration Path**:
+1. Review Grafana upgrade guide
+2. Check dashboards for deprecated panels
+3. Test dashboards after upgrade
+4. Update dashboards if needed
+
+**References**:
+- https://grafana.com/docs/grafana/latest/whatsnew/
+- https://grafana.com/docs/grafana/latest/setup-grafana/upgrade-grafana/
+
+**Our Experience** (v0.1.0 deployment):
+- ✅ Deployed directly on 11.0.0 (no upgrade needed)
+- ✅ Dashboard provisioning works well
+- ✅ Loki datasource compatible
+
+---
+
+### Python 3.11 (From 3.10)
+
+**Breaking Changes**:
+- Minimal for most code
+- Some standard library changes
+- Performance improvements
+
+**Migration Path**:
+- Generally smooth upgrade from 3.10
+- Test application after upgrade
+- Check for deprecation warnings
+
+**Our Experience**:
+- ✅ Telegram forwarder works on 3.11-alpine
+- ✅ requests library fully compatible
+- ✅ No issues encountered
+
+---
+
+## Upgrade Strategies
+
+### Conservative (Recommended for Production)
+
+1. **Stay on Stable Versions**
+   - Wait 30 days after major version release
+   - Use X.Y.Z versions, not .0 releases
+   - Example: Wait for 11.0.1 instead of 11.0.0
+
+2. **One Component at a Time**
+   - Update single component
+   - Monitor for 1 week
+   - Proceed to next component
+
+3. **Test Before Production**
+   - Test in development/staging if available
+   - Run full testing checklist
+   - Verify rollback procedure ready
+
+### Aggressive (For Development/Non-Critical)
+
+1. **Early Adoption**
+   - Deploy .0 releases shortly after release
+   - Test new features early
+   - Report issues to upstream
+
+2. **Batch Updates**
+   - Update multiple components together
+   - Faster iteration
+   - Higher risk of issues
+
+3. **Latest Stable**
+   - Always run latest minor version
+   - Get features and fixes faster
+   - Requires more frequent testing
+
+### Security-Driven (For Critical Vulnerabilities)
+
+1. **Immediate Patching**
+   - Apply security updates within SLA (24h-7d)
+   - Minimal testing acceptable for Critical
+   - Monitor closely after deployment
+
+2. **Version Jumping**
+   - May skip intermediate versions
+   - Jump directly to patched version
+   - Test thoroughly if major version jump
+
+---
+
+## Testing New Combinations
+
+### Testing Checklist
+
+When testing new version combination:
+
+- [ ] **Research**: Read changelogs and upgrade guides
+- [ ] **Compatibility Check**: Consult this matrix and upstream docs
+- [ ] **Backup**: Create backup before testing
+- [ ] **Configuration**: Update configs for new version if needed
+- [ ] **Deployment**: Deploy in test environment if available
+- [ ] **Functionality**: Test all critical features
+- [ ] **Performance**: Monitor resource usage
+- [ ] **Integration**: Verify all services communicate correctly
+- [ ] **Duration**: Run for 24-48 hours minimum
+- [ ] **Issues**: Document any problems encountered
+- [ ] **Rollback Test**: Verify rollback works if issues found
+- [ ] **Documentation**: Update this matrix with findings
+
+### Recording Test Results
+
+Add tested combinations to "Tested Configurations" section:
+
+```markdown
+### [Version Combination Name] - Tested YYYY-MM-DD
+
+✅/⚠️/❌ **Status**
+
+| Component | Version | Notes |
+|-----------|---------|-------|
+| ... | ... | ... |
+
+**Test Date**: YYYY-MM-DD
+**Stability**: [Stable / Issues / Unstable]
+**Issues**: [List any issues]
+**Recommendation**: [Safe / Use with caution / Not recommended]
+```
+
+---
+
+## Known Issues
+
+### Current Baseline (v0.2.0)
+
+**No known issues** with current version combination.
+
+### Previous Issues (Historical Reference)
+
+#### Issue: Loki 3.0 Configuration Syntax
+**Affected Versions**: Loki 3.0.0 initial deployment
+**Issue**: Invalid config fields from Loki 2.x syntax
+**Resolution**: Updated config to Loki 3.0 syntax
+**Workaround**: Use configuration from monitoring/loki/config.yml
+**Reference**: Commit e97318c (2025-11-23)
+
+#### Issue: Grafana Dashboard Timeout
+**Affected Versions**: Grafana 11.0.0 initial deployment
+**Issue**: Dashboards loading perpetually due to missing Loki retention
+**Resolution**: Implemented 24-hour retention policy, optimized dashboard time ranges
+**Workaround**: Use short time ranges (<1 hour) in dashboards
+**Reference**: Commits from 2025-11-23
+
+---
+
+## Future Considerations
+
+### Planned Updates (v0.3.0+)
+
+**Watchtower Integration**:
+- Will automate version updates
+- Requires version pinning (completed in v0.2.0)
+- Will respect compatibility rules from this matrix
+- Configuration: Monitor-only initially, then gradual automation
+
+**Component Additions**:
+- Docker Autoheal: Automatic container restart on failure
+- Additional monitoring: Future expansions
+- Infrastructure-wide: NetBird, Zitadel, PostgreSQL (v0.2.1+)
+
+---
+
+## References
+
+- **Dependency Versions**: DEPENDENCIES.md
+- **Update Procedures**: UPDATE_POLICY.md
+- **Official Docs**:
+  - Loki: https://grafana.com/docs/loki/
+  - Grafana: https://grafana.com/docs/grafana/
+  - Netdata: https://learn.netdata.cloud/
+  - ntfy: https://docs.ntfy.sh/
+  - Docker: https://docs.docker.com/
+
+---
+
+## Document History
+
+| Version | Date | Author | Changes |
+|---------|------|--------|---------|
+| 1.0 | 2025-11-24 | Claude Code | Initial release (v0.2.0) |
+
+**Next Review**: 2025-12-24 (1 month) or after major version upgrade
+**Review Trigger**: New major version adoption, compatibility issues discovered
+```
+
+#### Testing Requirements
+- Verify Loki + Promtail compatibility requirement is accurate
+- Check Grafana documentation for Loki compatibility claims
+- Validate Python + requests version requirements
+- Ensure all references link correctly
+
+#### Definition of Done
+- [ ] Complete document created with all sections
+- [ ] Current baseline documented as tested configuration
+- [ ] Loki + Promtail compatibility clearly stated
+- [ ] Grafana + Loki compatibility documented
+- [ ] Breaking changes for major versions documented
+- [ ] Upgrade strategies provided
+- [ ] Testing checklist included
+- [ ] File created at correct path
+- [ ] Markdown formatting correct
+- [ ] All upstream documentation links working
+- [ ] Committed to git with message: "Add COMPATIBILITY_MATRIX.md - version compatibility documentation"
+
+---
+
+### [BLOCKER-4] Create version check script
+
+**Priority**: High (Release Blocker)
+**Estimated Effort**: Large (3-4 hours)
+**Dependencies**: BLOCKER-1 (DEPENDENCIES.md provides baseline)
+**Risk Level**: Medium
+
+#### Context
+scripts/check-versions.sh automates version checking. Essential for ongoing maintenance and prerequisite for Watchtower (v0.3.0).
+
+**From PLANNING.md**: ~200-300 lines bash, includes documentation header
+
+#### Acceptance Criteria
+- [ ] Script checks current running versions via docker inspect
+- [ ] Script compares against docker-compose.yml definitions
+- [ ] Script generates human-readable report
+- [ ] Script exits with appropriate codes (0=up to date, 1=updates available, 2=error)
+- [ ] Script has comprehensive documentation in header
+- [ ] Script handles errors gracefully (missing containers, Docker not running)
+- [ ] Optional: Script can query Docker Hub for available updates (flag-based)
+
+#### Implementation Notes
+
+**File Location**: `/Users/rayiskander/myOCI/scripts/check-versions.sh`
+
+**Script Design**:
+
+```bash
+#!/usr/bin/env bash
+#
+# check-versions.sh - Infrastructure Version Checker
+#
+# Purpose:
+#   Checks current running Docker container versions against expected versions
+#   in docker-compose.yml. Generates report showing current vs expected versions
+#   and flags any mismatches.
+#
+# Usage:
+#   ./check-versions.sh [OPTIONS]
+#
+# Options:
+#   -h, --help           Show this help message
+#   -v, --verbose        Verbose output (show all checks)
+#   -q, --quiet          Quiet mode (only show issues)
+#   --check-updates      Query Docker Hub for available updates (requires internet)
+#   --json               Output in JSON format (for machine parsing)
+#   --compose-file PATH  Path to docker-compose.yml (default: ../monitoring/docker-compose.yml)
+#
+# Exit Codes:
+#   0 - All versions match expected, up to date
+#   1 - Version mismatches found or updates available
+#   2 - Error (Docker not available, files not found, etc.)
+#
+# Examples:
+#   ./check-versions.sh                    # Basic check
+#   ./check-versions.sh --check-updates    # Check for available updates
+#   ./check-versions.sh --json             # Machine-readable output
+#
+# Requirements:
+#   - Docker (docker command available)
+#   - jq (for JSON parsing)
+#   - Access to docker socket (for docker inspect)
+#   - curl (optional, for --check-updates)
+#
+# Author: Claude Code
+# Version: 1.0
+# Last Updated: 2025-11-24 (v0.2.0)
+#
+
+set -euo pipefail  # Exit on error, undefined vars, pipe failures
+
+# Color codes for output (disable if not a TTY)
+if [[ -t 1 ]]; then
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[1;33m'
+    BLUE='\033[0;34m'
+    NC='\033[0m' # No Color
+else
+    RED='' GREEN='' YELLOW='' BLUE='' NC=''
+fi
+
+# Default configuration
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+COMPOSE_FILE="${PROJECT_ROOT}/monitoring/docker-compose.yml"
+VERBOSE=false
+QUIET=false
+CHECK_UPDATES=false
+JSON_OUTPUT=false
+
+# Container name prefix (for filtering)
+CONTAINER_PREFIX="oci-"
+
+# Exit codes
+EXIT_OK=0
+EXIT_MISMATCH=1
+EXIT_ERROR=2
+
+# Parse command line arguments
+parse_args() {
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -h|--help)
+                grep '^#' "$0" | sed 's/^# \?//'
+                exit 0
+                ;;
+            -v|--verbose)
+                VERBOSE=true
+                shift
+                ;;
+            -q|--quiet)
+                QUIET=true
+                shift
+                ;;
+            --check-updates)
+                CHECK_UPDATES=true
+                shift
+                ;;
+            --json)
+                JSON_OUTPUT=true
+                shift
+                ;;
+            --compose-file)
+                COMPOSE_FILE="$2"
+                shift 2
+                ;;
+            *)
+                echo "Unknown option: $1" >&2
+                echo "Use --help for usage information" >&2
+                exit $EXIT_ERROR
+                ;;
+        esac
+    done
+}
+
+# Check prerequisites
+check_prerequisites() {
+    local missing_deps=()
+
+    if ! command -v docker &> /dev/null; then
+        missing_deps+=("docker")
+    fi
+
+    if ! command -v jq &> /dev/null; then
+        missing_deps+=("jq")
+    fi
+
+    if [[ ${#missing_deps[@]} -gt 0 ]]; then
+        echo -e "${RED}ERROR: Missing required dependencies: ${missing_deps[*]}${NC}" >&2
+        echo "Please install missing dependencies and try again." >&2
+        exit $EXIT_ERROR
+    fi
+
+    # Check Docker is running
+    if ! docker ps &> /dev/null; then
+        echo -e "${RED}ERROR: Docker is not running or not accessible${NC}" >&2
+        exit $EXIT_ERROR
+    fi
+
+    # Check compose file exists
+    if [[ ! -f "$COMPOSE_FILE" ]]; then
+        echo -e "${RED}ERROR: Compose file not found: $COMPOSE_FILE${NC}" >&2
+        exit $EXIT_ERROR
+    fi
+}
+
+# Get running container version
+get_running_version() {
+    local container_name=$1
+
+    # Check if container exists and is running
+    if ! docker ps --format '{{.Names}}' | grep -q "^${container_name}$"; then
+        echo "NOT_RUNNING"
+        return
+    fi
+
+    # Get image with tag
+    docker inspect "$container_name" --format '{{.Config.Image}}' 2>/dev/null || echo "ERROR"
+}
+
+# Get expected version from docker-compose.yml
+get_expected_version() {
+    local service_name=$1
+
+    # Extract image from docker-compose.yml using yq or manual parsing
+    # Note: This assumes docker-compose v2 format
+    docker-compose -f "$COMPOSE_FILE" config | \
+        grep -A 5 "^  ${service_name}:" | \
+        grep "image:" | \
+        awk '{print $2}' | \
+        tr -d "'" | \
+        head -1
+}
+
+# Compare versions
+compare_versions() {
+    local service=$1
+    local container=$2
+    local running=$3
+    local expected=$4
+
+    if [[ "$running" == "NOT_RUNNING" ]]; then
+        echo -e "${YELLOW}⚠${NC}  ${service}: Container not running (expected: ${expected})"
+        return 1
+    elif [[ "$running" == "ERROR" ]]; then
+        echo -e "${RED}✗${NC}  ${service}: Error getting version"
+        return 1
+    elif [[ "$running" != "$expected" ]]; then
+        echo -e "${YELLOW}⚠${NC}  ${service}: Version mismatch"
+        echo "     Running:  $running"
+        echo "     Expected: $expected"
+        return 1
+    else
+        if [[ "$VERBOSE" == true ]] || [[ "$QUIET" == false ]]; then
+            echo -e "${GREEN}✓${NC}  ${service}: $running"
+        fi
+        return 0
+    fi
+}
+
+# Main check function
+check_versions() {
+    echo "Infrastructure Version Report - $(date '+%Y-%m-%d %H:%M:%S')"
+    echo "=================================================="
+    echo ""
+    echo "MONITORING STACK:"
+    echo ""
+
+    local mismatch_count=0
+
+    # Define services to check (service_name:container_name)
+    local services=(
+        "netdata:oci-netdata"
+        "loki:oci-loki"
+        "promtail:oci-promtail"
+        "grafana:oci-grafana"
+        "ntfy:oci-ntfy"
+        "telegram-forwarder:oci-telegram-forwarder"
+    )
+
+    for service_def in "${services[@]}"; do
+        local service_name="${service_def%%:*}"
+        local container_name="${service_def##*:}"
+
+        local running_version=$(get_running_version "$container_name")
+        local expected_version=$(get_expected_version "$service_name")
+
+        if ! compare_versions "$service_name" "$container_name" "$running_version" "$expected_version"; then
+            ((mismatch_count++))
+        fi
+    done
+
+    echo ""
+    echo "SUMMARY:"
+    if [[ $mismatch_count -eq 0 ]]; then
+        echo -e "${GREEN}✓ All versions match expected configuration${NC}"
+        echo ""
+        return $EXIT_OK
+    else
+        echo -e "${YELLOW}⚠ Found $mismatch_count version mismatch(es)${NC}"
+        echo ""
+        echo "RECOMMENDATIONS:"
+        echo "- Review mismatches and determine if updates needed"
+        echo "- Consult DEPENDENCIES.md for current versions"
+        echo "- Follow UPDATE_POLICY.md for update procedures"
+        echo ""
+        return $EXIT_MISMATCH
+    fi
+}
+
+# Main execution
+main() {
+    parse_args "$@"
+    check_prerequisites
+    check_versions
+    exit $?
+}
+
+main "$@"
+```
+
+**Features to implement**:
+- Basic version checking (running vs expected)
+- Human-readable output with colors
+- Error handling for missing containers
+- Exit codes for automation
+- Verbose and quiet modes
+- Help documentation in header
+
+**Optional features (can add later)**:
+- JSON output mode (for machine parsing)
+- Check Docker Hub for available updates
+- Integration with DEPENDENCIES.md parsing
+
+#### Testing Requirements
+- Test with all containers running
+- Test with some containers stopped
+- Test with Docker not running
+- Test with missing docker-compose.yml
+- Test verbose and quiet modes
+- Verify exit codes correct
+- Test on actual production system
+
+#### Definition of Done
+- [ ] Script created at scripts/check-versions.sh
+- [ ] Execute permission set: `chmod +x scripts/check-versions.sh`
+- [ ] Comprehensive header documentation
+- [ ] Basic version checking implemented
+- [ ] Human-readable output with colors
+- [ ] Error handling implemented
+- [ ] Exit codes working correctly
+- [ ] --help flag works
+- [ ] --verbose flag works
+- [ ] Tested locally
+- [ ] Tested on production server (if accessible)
+- [ ] Committed to git with message: "Add scripts/check-versions.sh - automated version checking"
+
+---
+
+### [BLOCKER-5] Pin Docker image versions
+
+**Priority**: High (Release Blocker)
+**Estimated Effort**: Small (1 hour)
+**Dependencies**: PRE-1 (need current versions), BLOCKER-1 (document in DEPENDENCIES.md)
+**Risk Level**: Low
+
+#### Context
+Currently Netdata and ntfy use `:latest` tags. Must pin to specific versions for predictability and dependency management.
+
+**From TODO.md (v0.1.0)**: Task FEATURE-1, previously Low priority, now elevated to blocker for v0.2.0.
+
+#### Acceptance Criteria
+- [ ] Netdata version pinned in docker-compose.yml
+- [ ] ntfy version pinned in docker-compose.yml
+- [ ] Versions match what's currently running in production (from PRE-1)
+- [ ] docker-compose config validates successfully
+- [ ] Changes documented in DEPENDENCIES.md
+- [ ] Update entry added to DEPENDENCIES.md update history
+- [ ] CHANGELOG.md updated with version pinning
+
+#### Implementation Notes
+
+**Files to Modify**:
+1. `monitoring/docker-compose.yml` - Update image tags
+2. `DEPENDENCIES.md` - Update versions table
+3. `CHANGELOG.md` - Add entry for v0.2.0
+
+**Steps**:
+
+1. **Get versions from PRE-1 notes**
+   - Netdata version: [recorded in PRE-1]
+   - ntfy version: [recorded in PRE-1]
+
+2. **Update docker-compose.yml**:
+   ```yaml
+   # Before:
+   services:
+     netdata:
+       image: netdata/netdata:latest
+
+   # After:
+   services:
+     netdata:
+       image: netdata/netdata:v1.45.0  # Use actual version from PRE-1
+
+   # Before:
+   services:
+     ntfy:
+       image: binwiederhier/ntfy:latest
+
+   # After:
+   services:
+     ntfy:
+       image: binwiederhier/ntfy:v2.8.0  # Use actual version from PRE-1
+   ```
+
+3. **Validate configuration**:
+   ```bash
+   cd ~/myOCI/monitoring
+   docker-compose config  # Should succeed without errors
+   ```
+
+4. **Update DEPENDENCIES.md**:
+   - Update Netdata version in Docker Images table
+   - Update ntfy version in Docker Images table
+   - Update "Last Updated" date
+   - Add entry to Update History section
+
+5. **Update CHANGELOG.md**:
+   - Add to v0.2.0 "Changed" section
+   - Document version pinning with rationale
+
+#### Testing Requirements
+- [ ] Validate docker-compose config succeeds
+- [ ] Verify specified versions exist in Docker Hub
+- [ ] Test locally: `docker pull netdata/netdata:vX.Y.Z`
+- [ ] Test locally: `docker pull binwiederhier/ntfy:vX.Y.Z`
+
+#### Definition of Done
+- [ ] docker-compose.yml updated with specific versions
+- [ ] Configuration validated successfully
+- [ ] DEPENDENCIES.md updated
+- [ ] CHANGELOG.md updated
+- [ ] All files committed to git
+- [ ] Commit message: "Pin Netdata and ntfy versions for v0.2.0"
+- [ ] Ready for deployment (will happen in DEPLOY-1)
+
+---
+
+## Medium Priority Tasks (Should Have)
+
+### [DOCS-1] Update monitoring/README.md with dependency management
+
+**Priority**: Medium
+**Estimated Effort**: Small (30 minutes)
+**Dependencies**: BLOCKER-1, BLOCKER-2, BLOCKER-4 (need files to link to)
+**Risk Level**: Low
+
+#### Context
+monitoring/README.md needs section on dependency management to help users understand new tools and documentation.
+
+#### Acceptance Criteria
+- [ ] New "Dependency Management" section added
+- [ ] Links to DEPENDENCIES.md, UPDATE_POLICY.md, COMPATIBILITY_MATRIX.md
+- [ ] Brief explanation of version check script usage
+- [ ] Cross-references to related documentation
+- [ ] Section placed logically in document structure
+
+#### Implementation Notes
+
+**Add section after "Maintenance" or "Troubleshooting" section**:
+
+```markdown
+## Dependency Management
+
+### Version Tracking
+
+All infrastructure component versions are tracked in `DEPENDENCIES.md` at the project root. This document serves as the source of truth for:
+
+- Current versions of all Docker images
+- Python package versions
+- System requirements
+- Known vulnerabilities
+- Update history
+
+**View current versions**: See [DEPENDENCIES.md](../DEPENDENCIES.md)
+
+### Update Procedures
+
+Follow formalized update procedures documented in `UPDATE_POLICY.md`:
+
+- Update frequency guidelines (security vs feature)
+- Risk classification system
+- Pre-update testing checklists
+- Rollback procedures
+- Maintenance window scheduling
+
+**Update procedures**: See [UPDATE_POLICY.md](../UPDATE_POLICY.md)
+
+### Version Compatibility
+
+Version compatibility is documented in `COMPATIBILITY_MATRIX.md`:
+
+- Tested configurations
+- Known incompatibilities
+- Upgrade paths for major versions
+- Breaking changes between versions
+
+**Compatibility info**: See [COMPATIBILITY_MATRIX.md](../COMPATIBILITY_MATRIX.md)
+
+### Automated Version Checking
+
+Check current versions against expected versions:
+
+```bash
+cd ~/myOCI
+bash scripts/check-versions.sh
+```
+
+**Output**: Report showing current vs expected versions, flagging any mismatches.
+
+**Options**:
+- `--help`: Show usage information
+- `--verbose`: Show all checks
+- `--quiet`: Only show issues
+
+### Related Documentation
+
+- **Version Tracking**: [DEPENDENCIES.md](../DEPENDENCIES.md)
+- **Update Procedures**: [UPDATE_POLICY.md](../UPDATE_POLICY.md)
+- **Compatibility**: [COMPATIBILITY_MATRIX.md](../COMPATIBILITY_MATRIX.md)
+- **Security**: [SECURITY.md](SECURITY.md)
+- **Backup**: [BACKUP.md](BACKUP.md)
+- **Maintenance**: [MAINTENANCE.md](MAINTENANCE.md)
+```
+
+#### Testing Requirements
 - Verify all links work
-- Verify example values are realistic
+- Check markdown renders correctly
+- Ensure commands are accurate
 
 #### Definition of Done
 - [ ] Section added to monitoring/README.md
-- [ ] All environment variables documented
-- [ ] File committed to git
-- [ ] Reviewed for security issues
+- [ ] All links verified working
+- [ ] Markdown formatting correct
+- [ ] Committed to git with message: "Update monitoring/README.md with dependency management section"
 
 ---
 
-### [BLOCKER-3] Create git tag v0.1.0
+### [DOCS-2] Update CHANGELOG.md for v0.2.0
 
-**Priority**: High
-**Estimated Effort**: Small
-**Dependencies**: BLOCKER-1, BLOCKER-2, DOCS-1
+**Priority**: Medium
+**Estimated Effort**: Small (30 minutes)
+**Dependencies**: BLOCKER-1 through BLOCKER-5 (need to know what's included)
 **Risk Level**: Low
 
 #### Context
-Version tag v0.1.0 must be created to mark the official release. This is the final blocker before release announcement.
+CHANGELOG.md needs v0.2.0 entry documenting all changes in this release.
+
+**Template provided in PLANNING.md** - Use that as starting point.
 
 #### Acceptance Criteria
-- [ ] Annotated tag created with detailed message
-- [ ] Tag includes release summary
-- [ ] Tag pushed to remote
-- [ ] Tag visible on GitHub
+- [ ] v0.2.0 section added to CHANGELOG.md
+- [ ] All new features documented
+- [ ] Version pinning changes documented
+- [ ] Security enhancements documented
+- [ ] Follows Keep a Changelog format
+- [ ] Date filled in (or TBD for pre-release)
 
 #### Implementation Notes
-**Create annotated tag:**
-```bash
-git tag -a v0.1.0 -m "Release v0.1.0: Initial monitoring stack deployment
 
-This is the first production release of the myOCI monitoring infrastructure.
+**Add to CHANGELOG.md before v0.1.0 section**:
 
-## Highlights
-- Complete monitoring foundation (Netdata, Loki, Promtail)
-- Telegram notification integration (ntfy + custom forwarder)
-- Grafana visualization with 3 optimized dashboards
-- Automated weekly maintenance system
-- Web access via Caddy reverse proxy
+Use template from PLANNING.md section "Documentation & Communication > Changelog Entries"
 
-## Monitoring Stack
-- Netdata v2.8.0 - Real-time monitoring (1-second granularity)
-- Loki 3.0.0 - Log aggregation (24-hour retention)
-- Promtail 3.0.0 - Log collection
-- ntfy - Self-hosted notifications
-- Grafana 11.0.0 - Visualization platform
-- Custom Telegram forwarder (Python 3.12)
+**Key items to include**:
+- DEPENDENCIES.md creation
+- UPDATE_POLICY.md creation
+- COMPATIBILITY_MATRIX.md creation
+- scripts/check-versions.sh creation
+- Netdata version pinning
+- ntfy version pinning
+- Security vulnerability tracking process
 
-## Resource Overhead
-- Memory: ~500MB
-- CPU: 5-8%
-- Disk: ~1.5GB/day (24h retention)
+**Update release date once deployed**
 
-## What's Next
-- v0.1.1: Security hardening, authentication
-- v0.2.0: Phase 3 auto-healing (Docker Autoheal + Watchtower)
-- v1.0.0: All 5 phases complete + 30 days stable
+#### Testing Requirements
+- Verify follows Keep a Changelog format
+- Check all items accurate
+- Ensure no typos
 
-See CHANGELOG.md for detailed changes.
-See .claude/PLANNING.md for release strategy and roadmap."
+#### Definition of Done
+- [ ] v0.2.0 section added to CHANGELOG.md
+- [ ] All features documented
+- [ ] Follows proper format
+- [ ] Committed to git with message: "Update CHANGELOG.md for v0.2.0"
+
+---
+
+### [DOCS-3] Update monitoring/SECURITY.md cross-reference
+
+**Priority**: Medium
+**Estimated Effort**: Small (15 minutes)
+**Dependencies**: BLOCKER-2 (UPDATE_POLICY.md with vulnerability tracking)
+**Risk Level**: Low
+
+#### Context
+monitoring/SECURITY.md should reference new vulnerability tracking process in UPDATE_POLICY.md.
+
+#### Acceptance Criteria
+- [ ] Cross-reference added to Security section
+- [ ] Link to UPDATE_POLICY.md added
+- [ ] Brief mention of vulnerability tracking process
+- [ ] Integrated naturally into existing content
+
+#### Implementation Notes
+
+**Add to monitoring/SECURITY.md** in appropriate section (likely near security hardening or vulnerability sections):
+
+```markdown
+## Security Vulnerability Tracking
+
+Infrastructure component vulnerabilities are tracked and managed according to procedures defined in UPDATE_POLICY.md.
+
+**Process**:
+- Regular monitoring of security advisories
+- Vulnerability assessment and severity classification
+- Response SLAs based on criticality
+- Patching procedures with testing
+
+**See**: [UPDATE_POLICY.md](../UPDATE_POLICY.md#security-vulnerability-tracking) for complete vulnerability tracking procedures.
+
+**Current Status**: See [DEPENDENCIES.md](../DEPENDENCIES.md#known-vulnerabilities) for known vulnerabilities affecting deployed versions.
 ```
 
-**Push tag:**
+#### Testing Requirements
+- Verify links work
+- Ensure fits naturally in document flow
+
+#### Definition of Done
+- [ ] Cross-reference added to SECURITY.md
+- [ ] Links verified
+- [ ] Committed to git with message: "Add vulnerability tracking cross-reference to SECURITY.md"
+
+---
+
+### [DOCS-4] Update monitoring/MAINTENANCE.md with version checking
+
+**Priority**: Medium
+**Estimated Effort**: Small (15 minutes)
+**Dependencies**: BLOCKER-4 (check-versions.sh)
+**Risk Level**: Low
+
+#### Context
+monitoring/MAINTENANCE.md should include version checking in maintenance procedures.
+
+#### Acceptance Criteria
+- [ ] Version checking added to maintenance procedures
+- [ ] Reference to check-versions.sh script
+- [ ] Added to monthly maintenance checklist
+- [ ] Link to UPDATE_POLICY.md for update procedures
+
+#### Implementation Notes
+
+**Add to monitoring/MAINTENANCE.md** maintenance checklist:
+
+```markdown
+### Monthly Maintenance Checklist
+
+...existing items...
+
+#### Version Management
+- [ ] **Check for available updates**
+  ```bash
+  cd ~/myOCI
+  bash scripts/check-versions.sh
+  ```
+- [ ] **Review update recommendations**: If updates available, consult UPDATE_POLICY.md
+- [ ] **Schedule updates**: Plan updates for next maintenance window if needed
+- [ ] **Update DEPENDENCIES.md**: If versions changed, update documentation
+
+**Reference**: See [UPDATE_POLICY.md](../UPDATE_POLICY.md) for update procedures.
+```
+
+#### Testing Requirements
+- Verify script path correct
+- Ensure commands accurate
+
+#### Definition of Done
+- [ ] Section added to MAINTENANCE.md
+- [ ] Commands tested and verified
+- [ ] Committed to git with message: "Add version checking to maintenance procedures"
+
+---
+
+### [DOCS-5] Update .gitignore for backup files
+
+**Priority**: Medium
+**Estimated Effort**: Small (10 minutes)
+**Dependencies**: None
+**Risk Level**: Low
+
+#### Context
+Ensure backup files created during updates are not committed to git.
+
+#### Acceptance Criteria
+- [ ] *.backup.yml added to .gitignore
+- [ ] *.backup.txt added to .gitignore
+- [ ] scripts/*.log added (if scripts generate logs)
+- [ ] Verified existing entries still appropriate
+
+#### Implementation Notes
+
+**Add to .gitignore**:
+
+```
+# Backup files (from update procedures)
+*.backup.yml
+*.backup.txt
+*.backup
+
+# Script output
+scripts/*.log
+scripts/version-check-*.json
+scripts/version-check-*.txt
+
+# Version check temporary files
+.version-check-cache
+```
+
+**Check existing .gitignore**:
+- Ensure .env still ignored
+- Ensure *.key still ignored (SSH keys)
+- Ensure Docker volumes not tracked
+
+#### Testing Requirements
+- Verify .gitignore syntax correct
+- Test that backup files are ignored: create dummy file, check git status
+
+#### Definition of Done
+- [ ] .gitignore updated
+- [ ] Tested with dummy backup file
+- [ ] Committed to git with message: "Update .gitignore for backup files and script output"
+
+---
+
+### [OPTIONAL-1] Create update testing script
+
+**Priority**: Low (Optional for v0.2.0)
+**Estimated Effort**: Large (3-4 hours)
+**Dependencies**: BLOCKER-2 (UPDATE_POLICY.md defines process)
+**Risk Level**: Medium
+
+#### Context
+scripts/test-update.sh automates update testing. Nice to have but manual testing acceptable for v0.2.0. Can defer to v0.2.1.
+
+**From PLANNING.md**: IMPORTANT-2, optional for v0.2.0 release.
+
+#### Acceptance Criteria
+- [ ] Script accepts component name and version as parameters
+- [ ] Script creates backup of current state
+- [ ] Script updates specified component
+- [ ] Script runs health checks
+- [ ] Script generates pass/fail report
+- [ ] Script can rollback on failure
+
+#### Implementation Notes
+
+**File Location**: `/Users/rayiskander/myOCI/scripts/test-update.sh`
+
+**Basic structure**:
 ```bash
+#!/usr/bin/env bash
+# test-update.sh - Automated update testing
+# Usage: ./test-update.sh <service-name> <new-version>
+
+set -euo pipefail
+
+SERVICE=$1
+NEW_VERSION=$2
+
+# 1. Backup current state
+# 2. Update docker-compose.yml
+# 3. Pull new image
+# 4. Deploy update
+# 5. Run health checks
+# 6. Report results
+# 7. Rollback if issues
+```
+
+**Can defer to v0.2.1** if time constrained.
+
+#### Definition of Done
+- [ ] Script created (or explicitly deferred to v0.2.1)
+- [ ] If created: All acceptance criteria met
+- [ ] If deferred: Noted in PLANNING.md and v0.2.1 planning
+
+---
+
+## Deployment Tasks
+
+### [DEPLOY-1] Deploy v0.2.0 to production
+
+**Priority**: High (Final step)
+**Estimated Effort**: Medium (1-2 hours including verification)
+**Dependencies**: All BLOCKER tasks complete, PRE-3 (prerequisites verified)
+**Risk Level**: Low-Medium
+
+#### Context
+Deploy v0.2.0 to production server. Follows deployment strategy from PLANNING.md.
+
+**Timing**: After 1-week v0.1.0 validation period (around Dec 1-8, 2025)
+
+#### Acceptance Criteria
+- [ ] All documentation files deployed to server
+- [ ] Scripts deployed with execute permissions
+- [ ] docker-compose.yml updated with pinned versions
+- [ ] All services restarted successfully (if needed)
+- [ ] Version check script runs successfully
+- [ ] All health checks passing
+- [ ] Git tag v0.2.0 created
+- [ ] Tag pushed to remote
+
+#### Implementation Notes
+
+**Follow deployment procedure from PLANNING.md "Deployment Steps"**
+
+**Phase 1: Documentation Deployment** (zero downtime):
+```bash
+# On production server
+cd ~/myOCI
+git fetch origin
+git checkout v0.2.0  # or main if not tagged yet
+ls -l DEPENDENCIES.md UPDATE_POLICY.md COMPATIBILITY_MATRIX.md
+ls -l scripts/check-versions.sh
+
+# Install jq if needed
+which jq || sudo apt-get install -y jq
+
+# Test version check script
+bash scripts/check-versions.sh
+```
+
+**Phase 2: Version Pinning Deployment** (potential brief restart):
+```bash
+cd ~/myOCI/monitoring
+
+# Backup current state
+docker-compose config > docker-compose.backup.yml
+docker ps > containers.backup.txt
+
+# Pull updated code (includes docker-compose.yml changes)
+cd ~/myOCI
+git pull origin main  # or v0.2.0
+
+# Verify changes
+cd monitoring
+diff docker-compose.backup.yml docker-compose.yml
+
+# Apply changes
+docker-compose up -d
+# Note: May cause brief container recreation if versions differ
+
+# Monitor startup
+docker-compose ps
+docker-compose logs -f --tail=50
+
+# Verify services
+curl -I http://localhost:19999  # Netdata
+curl http://localhost:8765/v1/health  # ntfy
+curl -I http://localhost:3000  # Grafana
+
+# Test Telegram
+curl -d "v0.2.0 deployment verification" http://localhost:8765/oci-info
+```
+
+**Phase 3: Verification**:
+```bash
+# Run version check
+cd ~/myOCI
+bash scripts/check-versions.sh
+
+# Verify all containers healthy
+docker ps | grep oci-
+
+# Check dashboard access
+# Visit: https://monitor.qubix.space
+# Visit: https://grafana.qubix.space
+
+# Verify logging still working
+# Check Grafana Explore for recent logs
+```
+
+**Phase 4: Git Tagging**:
+```bash
+cd ~/myOCI
+
+# Create annotated tag
+git tag -a v0.2.0 -m "Release v0.2.0: Dependency Management System
+
+Comprehensive dependency management infrastructure for predictable, safe updates.
+
+## Features Added
+- DEPENDENCIES.md: Centralized version tracking
+- UPDATE_POLICY.md: Formalized update procedures
+- COMPATIBILITY_MATRIX.md: Version compatibility documentation
+- scripts/check-versions.sh: Automated version checking
+
+## Changes
+- Pinned Netdata version (latest → vX.Y.Z)
+- Pinned ntfy version (latest → vX.Y.Z)
+
+## Infrastructure
+- Foundation for Phase 3 auto-healing (Watchtower in v0.3.0)
+- Security vulnerability tracking process established
+- Update testing procedures documented
+
+See CHANGELOG.md for complete details.
+See PLANNING.md for release strategy."
+
+# Push tag
 git push origin main --tags
 ```
 
 #### Testing Requirements
-- Verify tag created: `git tag -l`
-- Verify tag annotation: `git show v0.1.0`
-- Verify tag on remote: `git ls-remote --tags origin`
+- Follow all verification steps from PLANNING.md "Post-Deployment Verification"
+- Monitor for first 24 hours
+- Check logs for any errors
+- Verify dashboards loading
+- Verify Telegram notifications working
 
 #### Definition of Done
-- [ ] Tag v0.1.0 created locally
-- [ ] Tag pushed to origin
-- [ ] Tag visible on GitHub releases page
-- [ ] Tag annotation complete and accurate
+- [ ] Phase 1 (docs) deployed successfully
+- [ ] Phase 2 (version pinning) deployed successfully
+- [ ] All immediate verification checks passed
+- [ ] Version check script working
+- [ ] Git tag v0.2.0 created
+- [ ] Tag pushed to remote
+- [ ] No errors in logs
+- [ ] All services healthy
+- [ ] 24-hour monitoring scheduled
 
 ---
 
-## Medium Priority Tasks (IMPORTANT)
+### [DEPLOY-2] Post-deployment verification
 
-### [DEPLOY-1] Verify cron job for maintenance.sh on server
+**Priority**: High
+**Estimated Effort**: Small (30-60 minutes over 24 hours)
+**Dependencies**: DEPLOY-1 (deployment complete)
+**Risk Level**: Low
 
-**Priority**: Medium
-**Estimated Effort**: Small
+#### Context
+Extended validation after deployment to ensure stability.
+
+**From PLANNING.md**: 24-hour validation and 1-week validation checklists.
+
+#### Acceptance Criteria
+- [ ] All immediate checks passed (within 5 minutes)
+- [ ] Extended validation completed (within 1 hour)
+- [ ] 24-hour validation completed
+- [ ] Documentation review completed (within 1 week)
+- [ ] Any issues documented and addressed
+
+#### Implementation Notes
+
+**Execute checklists from PLANNING.md "Post-Deployment Verification"**
+
+**Immediate Checks (within 5 minutes):**
+- [ ] All monitoring containers running
+- [ ] Netdata dashboard accessible
+- [ ] Grafana dashboard accessible
+- [ ] ntfy health check passing
+- [ ] Telegram notifications working
+- [ ] Loki receiving logs
+
+**Extended Validation (within 1 hour):**
+- [ ] Run version check script
+- [ ] Verify script output matches DEPENDENCIES.md
+- [ ] Check for error logs
+- [ ] Verify dashboards loading data
+- [ ] Verify log retention still working
+
+**24-Hour Validation:**
+- [ ] No unexpected container restarts
+- [ ] No memory leaks or resource issues
+- [ ] Maintenance script still works (if scheduled)
+- [ ] All alerting channels functional
+
+**Documentation Review (within 1 week):**
+- [ ] Review DEPENDENCIES.md accuracy
+- [ ] Update any gaps or errors discovered
+- [ ] Add lessons learned to UPDATE_POLICY.md
+- [ ] Update COMPATIBILITY_MATRIX.md if issues found
+
+#### Testing Requirements
+- Execute all checklists
+- Document any anomalies
+- Compare against v0.1.0 baseline
+
+#### Definition of Done
+- [ ] All immediate checks passed
+- [ ] Extended validation passed
+- [ ] 24-hour validation passed
+- [ ] Documentation reviewed and updated if needed
+- [ ] Verification documented in notes
+- [ ] v0.2.0 declared stable (or issues identified and addressed)
+
+---
+
+## Low Priority Tasks (Nice to Have - Can Defer)
+
+### [OPTIONAL-2] Document infrastructure-wide dependencies
+
+**Priority**: Low (Deferred to v0.2.1)
+**Estimated Effort**: Medium (2-3 hours)
+**Dependencies**: BLOCKER-1 (DEPENDENCIES.md structure established)
+**Risk Level**: Low
+
+#### Context
+Extend DEPENDENCIES.md to include broader infrastructure (NetBird, Zitadel, PostgreSQL, etc.)
+
+**From PLANNING.md**: IMPORTANT-3, can release without, add in v0.2.1.
+
+**Decision from PRE-2**: If scope limited to monitoring + critical deps, this task deferred.
+
+#### Acceptance Criteria
+- [ ] NetBird component versions identified and documented
+- [ ] Caddy version and modules documented
+- [ ] Zitadel version documented
+- [ ] PostgreSQL version documented
+- [ ] Added to DEPENDENCIES.md or separate INFRASTRUCTURE_DEPENDENCIES.md
+
+#### Implementation Notes
+**Defer to v0.2.1** unless scope decision (PRE-2) includes full infrastructure.
+
+If implementing:
+- SSH to server and identify versions
+- Add new section to DEPENDENCIES.md
+- Document inter-dependencies
+- Update COMPATIBILITY_MATRIX.md if relevant
+
+#### Definition of Done
+- [ ] Explicitly deferred to v0.2.1 (update PLANNING.md)
+- OR [ ] Implemented and documented (if scope changed)
+
+---
+
+### [OPTIONAL-3] Integrate GitHub Dependabot
+
+**Priority**: Low (Deferred to v0.2.1+)
+**Estimated Effort**: Small (1 hour)
 **Dependencies**: None
 **Risk Level**: Low
 
 #### Context
-Maintenance script exists but cron job needs to be verified on production server. Weekly automation is important for long-term stability.
+GitHub Dependabot can create automated PRs for dependency updates.
+
+**From PLANNING.md**: OPTIONAL-1, defer to v0.2.1 or later.
 
 #### Acceptance Criteria
-- [ ] Cron job exists on server
-- [ ] Cron job has correct schedule (Sunday 2 AM EET)
-- [ ] Cron job has correct path and logging
-- [ ] Test run completed successfully
+- [ ] .github/dependabot.yml created
+- [ ] Configured for Docker images
+- [ ] Configured for Python requirements.txt
+- [ ] Tested (PR created successfully)
 
 #### Implementation Notes
-**SSH to server and verify:**
-```bash
-ssh -i ~/.ssh/sshkey-netbird-private.key ubuntu@159.54.162.114
+**Explicitly defer to v0.2.1 or later**.
 
-# Check current crontab
-crontab -l
-
-# If missing, add cron job
-crontab -e
-
-# Add this line:
-# 0 2 * * 0 cd /home/ubuntu/monitoring && ./maintenance.sh >> /home/ubuntu/monitoring/maintenance.log 2>&1
-
-# Save and verify
-crontab -l | grep maintenance
-```
-
-**Manual test run:**
-```bash
-cd /home/ubuntu/monitoring
-./maintenance.sh
-
-# Check log output
-tail -20 maintenance.log
-```
-
-#### Testing Requirements
-- Verify cron job syntax correct
-- Run maintenance.sh manually and verify no errors
-- Check maintenance.log for expected output
-- Verify critical services remain healthy after run
+Core dependency management must be proven stable before enabling automation.
 
 #### Definition of Done
-- [ ] Cron job verified or created
-- [ ] Manual test run successful
-- [ ] Log file created with expected output
-- [ ] All containers healthy after maintenance run
-- [ ] Documented in MAINTENANCE.md
+- [ ] Explicitly deferred (note in PLANNING.md for v0.2.1)
 
 ---
 
-### [DOCS-2] Document backup strategy
+### [OPTIONAL-4] Create version dashboard webpage
 
-**Priority**: Medium
-**Estimated Effort**: Medium
-**Dependencies**: None
+**Priority**: Low (Deferred to v0.3.0)
+**Estimated Effort**: Medium (3-4 hours)
+**Dependencies**: BLOCKER-4 (version check script)
 **Risk Level**: Low
 
 #### Context
-No formal backup strategy exists for Grafana dashboards, configurations, and monitoring data. Need to document backup procedures and recovery steps.
+Visual dashboard showing version status at a glance.
 
-#### Acceptance Criteria
-- [ ] Backup strategy documented
-- [ ] Recovery procedures documented
-- [ ] Backup locations defined
-- [ ] Backup schedule defined
-- [ ] Backup verification steps included
+**From PLANNING.md**: OPTIONAL-2, defer to v0.3.0 (visualization enhancements).
 
 #### Implementation Notes
-**Create monitoring/BACKUP.md:**
+**Explicitly defer to v0.3.0**.
 
-```markdown
-# Backup Strategy - Monitoring Stack
-
-## What to Backup
-
-### Critical (Must backup)
-- Grafana dashboards and configuration
-- Docker compose files and service configs
-- Environment variables (.env)
-- Loki configuration
-- Promtail configuration
-
-### Optional (Nice to have)
-- Grafana database (user settings, annotations)
-- Netdata configuration
-- Maintenance logs
-
-## Backup Procedures
-
-### Manual Backup
-
-**1. Grafana Dashboards:**
-```bash
-# From local machine
-scp -i ~/.ssh/sshkey-netbird-private.key \
-    ubuntu@159.54.162.114:~/monitoring/grafana/dashboards/*.json \
-    ~/backups/monitoring/grafana-dashboards-$(date +%Y%m%d)/
-```
-
-**2. Configuration Files:**
-```bash
-# Backup entire monitoring directory (configs only, no data)
-scp -i ~/.ssh/sshkey-netbird-private.key -r \
-    ubuntu@159.54.162.114:~/monitoring/*.{yml,yaml,conf,sh,md} \
-    ~/backups/monitoring/configs-$(date +%Y%m%d)/
-```
-
-**3. Environment Variables (encrypted):**
-```bash
-# Create encrypted backup of .env
-ssh -i ~/.ssh/sshkey-netbird-private.key ubuntu@159.54.162.114 \
-    'cd ~/monitoring && gpg -c .env'
-scp -i ~/.ssh/sshkey-netbird-private.key \
-    ubuntu@159.54.162.114:~/monitoring/.env.gpg \
-    ~/backups/monitoring/
-```
-
-### Automated Backup (TODO: Implement in v0.2.0)
-
-**Backup script (future enhancement):**
-- Weekly automated backups
-- Encrypted off-server storage
-- 30-day retention
-- Backup verification
-
-## Recovery Procedures
-
-### Restore Grafana Dashboards
-```bash
-scp -i ~/.ssh/sshkey-netbird-private.key \
-    ~/backups/monitoring/grafana-dashboards-YYYYMMDD/*.json \
-    ubuntu@159.54.162.114:~/monitoring/grafana/dashboards/
-
-ssh -i ~/.ssh/sshkey-netbird-private.key ubuntu@159.54.162.114 \
-    'cd ~/monitoring && docker compose restart grafana'
-```
-
-### Restore Configuration
-```bash
-scp -i ~/.ssh/sshkey-netbird-private.key -r \
-    ~/backups/monitoring/configs-YYYYMMDD/* \
-    ubuntu@159.54.162.114:~/monitoring/
-
-ssh -i ~/.ssh/sshkey-netbird-private.key ubuntu@159.54.162.114 \
-    'cd ~/monitoring && docker compose up -d'
-```
-
-### Full Disaster Recovery
-```bash
-# 1. Fresh server setup
-# 2. Install Docker and Docker Compose
-# 3. Clone repository
-git clone https://github.com/rayiskander2406/myOCI.git
-cd myOCI/monitoring
-
-# 4. Restore configurations
-# (copy backup files)
-
-# 5. Restore .env (decrypt)
-gpg -d ~/backups/monitoring/.env.gpg > .env
-
-# 6. Deploy
-docker compose up -d
-
-# 7. Verify
-docker ps
-curl http://localhost:3100/ready
-curl http://localhost:3000/api/health
-```
-
-## Backup Schedule
-
-| Item | Frequency | Retention | Method |
-|------|-----------|-----------|--------|
-| Grafana Dashboards | On change | Indefinite | Git + Manual backup |
-| Configurations | On change | Indefinite | Git repository |
-| .env (encrypted) | Weekly | 4 weeks | Manual backup |
-| Grafana database | Weekly | 4 weeks | Docker volume backup |
-
-## Backup Verification
-
-**Monthly verification checklist:**
-- [ ] Verify backup files exist
-- [ ] Verify backup files not corrupted
-- [ ] Test restore on staging environment
-- [ ] Document any issues
-- [ ] Update backup procedures if needed
-
-## Important Notes
-
-- **Git is the primary backup** for all configurations
-- Monitoring data (metrics, logs) is ephemeral (24h retention)
-- Focus backups on configurations, not data
-- Keep encrypted .env backups separate from configs
-- Test restore procedures quarterly
-```
-
-**Files to create:**
-- `monitoring/BACKUP.md`
-
-#### Testing Requirements
-- Follow backup procedures and verify files created
-- Test restore procedure on local development setup
-- Verify encrypted .env can be decrypted
+Focus v0.2.0 on core dependency management, visualization later.
 
 #### Definition of Done
-- [ ] BACKUP.md created with complete procedures
-- [ ] Backup procedures tested manually
-- [ ] Recovery procedures tested on local system
-- [ ] File committed to git
-- [ ] Cross-referenced in monitoring/README.md
+- [ ] Explicitly deferred (note for v0.3.0 planning)
 
 ---
 
-### [DOCS-3] Add security hardening documentation
-
-**Priority**: Medium
-**Estimated Effort**: Medium
-**Dependencies**: None
-**Risk Level**: Medium
-
-#### Context
-Security hardening recommendations exist in PLANNING.md but not documented as actionable procedures. Need to document authentication setup and security best practices.
-
-#### Acceptance Criteria
-- [ ] Authentication procedures documented for Grafana
-- [ ] Authentication procedures documented for Netdata (via Caddy)
-- [ ] Docker socket security reviewed and documented
-- [ ] Secrets management best practices documented
-- [ ] Network security documented
-
-#### Implementation Notes
-**Create monitoring/SECURITY.md:**
-
-```markdown
-# Security Hardening - Monitoring Stack
-
-## Current Security Posture
-
-### Secured
-- All services behind VPN (NetBird network)
-- Web access via HTTPS (Caddy reverse proxy)
-- Docker socket mounted read-only where possible
-- Sensitive credentials in .env (gitignored)
-
-### To Be Hardened
-- Grafana has default credentials (admin/admin)
-- Netdata has no authentication
-- Environment variables in plain text .env file
-- No rate limiting on notification endpoints
-
-## Security Roadmap
-
-### Phase 1 - Basic Authentication (v0.1.1)
-1. Enable Grafana authentication
-2. Configure Caddy auth for Netdata
-3. Change default passwords
-
-### Phase 2 - Secrets Management (v0.2.0)
-1. Migrate to Docker secrets
-2. Rotate Telegram bot token
-3. Enable ntfy ACLs
-
-### Phase 3 - Advanced Security (v0.3.0)
-1. Implement rate limiting
-2. Add fail2ban integration
-3. Enable audit logging
-
-## Implementation Guide
-
-### 1. Enable Grafana Authentication
-
-**Current state:** Default admin/admin credentials
-**Risk:** Medium - accessible via VPN only
-**Priority:** High
-
-**Steps:**
-
-1. Set strong admin password:
-   ```bash
-   # Edit .env
-   GRAFANA_ADMIN_PASSWORD=<generate-strong-password>
-
-   # Restart Grafana
-   docker compose restart grafana
-   ```
-
-2. Disable anonymous access (if enabled):
-   ```bash
-   # Edit docker-compose.yml
-   environment:
-     - GF_AUTH_ANONYMOUS_ENABLED=false
-   ```
-
-3. Enable OAuth (optional, future enhancement):
-   - Configure Zitadel integration
-   - Single sign-on for all services
-
-**Verification:**
-```bash
-curl -u admin:<password> http://localhost:3000/api/health
-```
-
-### 2. Configure Netdata Authentication (Caddy)
-
-**Current state:** No authentication on Netdata dashboard
-**Risk:** Medium - accessible via VPN, but no user auth
-**Priority:** Medium
-
-**Steps:**
-
-1. Add basic auth to Caddy configuration:
-   ```
-   monitor.qubix.space {
-       basicauth {
-           admin $2a$14$<bcrypt-hash>
-       }
-       reverse_proxy oci-netdata:19999
-   }
-   ```
-
-2. Generate bcrypt hash:
-   ```bash
-   caddy hash-password
-   ```
-
-3. Reload Caddy:
-   ```bash
-   docker exec infrastructure_files-caddy-1 caddy reload --config /etc/caddy/Caddyfile
-   ```
-
-**Verification:**
-```bash
-curl -u admin:<password> https://monitor.qubix.space
-```
-
-### 3. Migrate to Docker Secrets
-
-**Current state:** Credentials in .env file (plain text)
-**Risk:** Medium - file access = credential access
-**Priority:** High (v0.2.0)
-
-**Steps:**
-
-1. Create Docker secrets:
-   ```bash
-   echo "your-telegram-token" | docker secret create telegram_bot_token -
-   echo "your-chat-id" | docker secret create telegram_chat_id -
-   ```
-
-2. Update docker-compose.yml:
-   ```yaml
-   services:
-     telegram-forwarder:
-       secrets:
-         - telegram_bot_token
-         - telegram_chat_id
-       environment:
-         - TELEGRAM_BOT_TOKEN_FILE=/run/secrets/telegram_bot_token
-         - TELEGRAM_CHAT_ID_FILE=/run/secrets/telegram_chat_id
-
-   secrets:
-     telegram_bot_token:
-       external: true
-     telegram_chat_id:
-       external: true
-   ```
-
-3. Update forwarder.py to read from files:
-   ```python
-   # Read from Docker secrets
-   with open('/run/secrets/telegram_bot_token') as f:
-       bot_token = f.read().strip()
-   ```
-
-### 4. Enable ntfy ACLs
-
-**Current state:** Open topics, no authentication
-**Risk:** Low - internal network only
-**Priority:** Low (v0.2.0)
-
-**Steps:**
-
-1. Create ntfy config with ACLs:
-   ```yaml
-   # monitoring/ntfy/server.yml
-   auth:
-     file: /var/lib/ntfy/user.db
-     default-access: deny-all
-
-   acl:
-     - topic: oci-critical
-       write: monitoring-service
-       read: admin, monitoring-team
-     - topic: oci-warning
-       write: monitoring-service
-       read: admin, monitoring-team
-   ```
-
-2. Create users:
-   ```bash
-   docker exec -it oci-ntfy ntfy user add monitoring-service
-   docker exec -it oci-ntfy ntfy user add admin
-   ```
-
-3. Update forwarder to use authentication:
-   ```python
-   headers = {
-       'Authorization': f'Bearer {ntfy_token}'
-   }
-   ```
-
-### 5. Docker Socket Security
-
-**Current state:** Docker socket mounted in monitoring containers
-**Risk:** High - socket access = root access
-**Mitigation:** Containers run with minimal permissions, socket mounted read-only where possible
-
-**Best practices:**
-- Never mount socket read-write unless required
-- Use Docker API proxy (future enhancement)
-- Limit container capabilities
-- Run containers as non-root user (where possible)
-
-**Review:**
-```bash
-# Check socket mounts
-docker inspect oci-netdata | grep -A 3 "docker.sock"
-docker inspect oci-promtail | grep -A 3 "docker.sock"
-
-# Verify read-only
-# Look for ":ro" suffix
-```
-
-### 6. Network Isolation
-
-**Current state:** Monitoring network + NetBird network
-**Security level:** Good - isolated from public networks
-
-**Recommendations:**
-- Keep monitoring on separate network
-- Only join NetBird network for Caddy access
-- No direct internet exposure
-- All external access via Caddy (HTTPS)
-
-### 7. Rate Limiting & Fail2ban
-
-**Priority:** Low (v0.3.0)
-
-**Rate limiting on ntfy:**
-```yaml
-# ntfy config
-rate-limit:
-  requests-per-second: 10
-  requests-per-minute: 100
-```
-
-**Fail2ban for Grafana:**
-```ini
-# /etc/fail2ban/jail.local
-[grafana]
-enabled = true
-port = 3000
-filter = grafana
-logpath = /var/log/grafana/grafana.log
-maxretry = 3
-```
-
-## Security Checklist
-
-### Pre-Production
-- [ ] Change default Grafana password
-- [ ] Enable Grafana authentication
-- [ ] Configure Caddy basic auth for Netdata
-- [ ] Rotate Telegram bot token
-- [ ] Verify .env in .gitignore
-- [ ] Review Docker socket permissions
-
-### Post-Production (v0.1.1)
-- [ ] Migrate to Docker secrets
-- [ ] Enable ntfy ACLs
-- [ ] Implement backup encryption
-- [ ] Set up security monitoring
-- [ ] Document incident response procedures
-
-### Ongoing
-- [ ] Monthly security review
-- [ ] Quarterly password rotation
-- [ ] Review access logs
-- [ ] Update dependencies
-- [ ] Monitor security advisories
-
-## Incident Response
-
-**If credentials compromised:**
-1. Immediately rotate all affected credentials
-2. Review access logs for unauthorized access
-3. Check for data exfiltration
-4. Notify relevant parties
-5. Update security procedures
-
-**If service compromised:**
-1. Isolate affected container
-2. Take memory dump (if needed for analysis)
-3. Stop and remove container
-4. Review logs for IOCs (Indicators of Compromise)
-5. Rebuild from known-good image
-6. Restore from backup if needed
-
-## Security Contacts
-
-- **Primary:** [Your contact]
-- **Escalation:** [Manager contact]
-- **Vendor support:** [Relevant vendors]
-
-## Resources
-
-- [Docker Security Best Practices](https://docs.docker.com/engine/security/)
-- [Grafana Security](https://grafana.com/docs/grafana/latest/setup-grafana/configure-security/)
-- [OWASP Top 10](https://owasp.org/www-project-top-ten/)
-```
-
-**Files to create:**
-- `monitoring/SECURITY.md`
-
-#### Testing Requirements
-- Review procedures with security mindset
-- Verify all commands work as documented
-- Test authentication procedures
-
-#### Definition of Done
-- [ ] SECURITY.md created
-- [ ] All procedures documented
-- [ ] Grafana authentication tested
-- [ ] File committed to git
-- [ ] Cross-referenced in monitoring/README.md
-
----
-
-### [DOCS-1] Create root CHANGELOG.md
-
-**Priority**: High (part of blockers)
-**Estimated Effort**: Small
-**Dependencies**: None
+### [OPTIONAL-5] Automated update notifications via Telegram
+
+**Priority**: Low (Deferred to v0.2.1)
+**Estimated Effort**: Small (2 hours)
+**Dependencies**: BLOCKER-4 (version check script), existing Telegram integration
 **Risk Level**: Low
 
 #### Context
-CHANGELOG.md is standard practice for releases and provides user-facing documentation of changes. Required before creating v0.1.0 tag.
+Weekly cron job to check versions and notify via Telegram if updates available.
 
-#### Acceptance Criteria
-- [ ] CHANGELOG.md created at project root
-- [ ] Follows Keep a Changelog format
-- [ ] Includes all features from PLANNING.md
-- [ ] Includes all bug fixes
-- [ ] Version and date correct
+**From PLANNING.md**: OPTIONAL-3, defer to v0.2.1 (after core proven).
 
 #### Implementation Notes
-**Create CHANGELOG.md at project root (`/Users/rayiskander/myOCI/CHANGELOG.md`):**
+**Defer to v0.2.1** after core dependency management proven stable.
 
-```markdown
-# Changelog
-
-All notable changes to this project will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-## [Unreleased]
-
-### Planned
-- Phase 3: Auto-healing with Docker Autoheal and Watchtower
-- Grafana alerting rules
-- Netdata alert integration with ntfy
-- API health check endpoints
-
-## [0.1.0] - 2025-11-24
-
-### Added
-
-#### Monitoring Foundation (Week 1)
-- Real-time monitoring with Netdata v2.8.0
-  - 1-second granularity metrics
-  - Auto-discovery of Docker containers
-  - System metrics (CPU, memory, disk, network)
-  - Built-in anomaly detection
-  - Per-container resource monitoring
-  - Web dashboard on port 19999
-
-- Centralized log aggregation with Loki 3.0.0
-  - 24-hour log retention policy
-  - Schema v13 (TSDB) for Loki 3.0 compatibility
-  - Automatic compaction every 10 minutes
-  - Filesystem-based storage
-  - LogQL query language support
-
-- Log collection with Promtail 3.0.0
-  - Docker log collection via socket
-  - Priority-based labeling (critical/high/standard)
-  - Service name extraction from Docker labels
-  - Auto-discovery of containers
-
-#### Alerting & Notifications (Week 2)
-- Self-hosted notification server (ntfy)
-  - HTTP pub-sub architecture
-  - Multiple topic support (oci-critical, oci-warning, oci-info)
-  - Lightweight (32 MB RAM, no database required)
-  - Port 8765 web UI and API
-
-- Custom Telegram forwarder service (Python 3.12)
-  - Real-time alert forwarding to Telegram
-  - Priority-based emoji enrichment (🔴🟠🟡🟢⚪)
-  - HTML formatting for message display
-  - Timezone-aware timestamps (EET/Cairo)
-  - Automatic reconnection on failures
-
-- Visualization platform with Grafana 11.0.0
-  - Loki datasource (default) for log queries
-  - Netdata datasource for metrics
-  - Dashboard provisioning enabled
-  - 3 optimized dashboards:
-    - System Health (10-min range, high-level overview)
-    - Container Details (per-container deep dive with dropdown)
-    - Error Tracking (system-wide error monitoring)
-
-- Maintenance automation system
-  - Weekly maintenance script (Sunday 2 AM EET)
-  - Docker resource cleanup
-  - Container health verification
-  - Disk usage reporting
-  - Log rotation (last 10 runs)
-
-#### Web Access Integration
-- Caddy reverse proxy integration
-  - Netdata accessible via https://monitor.qubix.space
-  - Grafana accessible via https://grafana.qubix.space
-  - SSL/TLS termination
-  - Authentication ready (to be configured)
-
-#### Documentation
-- Comprehensive implementation reports (Week 1 & Week 2)
-- Dashboard usage guide (DASHBOARDS_GUIDE.md)
-- Grafana Explore mode guide (GRAFANA_EXPLORE_GUIDE.md)
-- Maintenance procedures (MAINTENANCE.md)
-- Web access instructions (ACCESS_INSTRUCTIONS.md)
-- Telegram testing walkthrough (TELEGRAM_TEST_WALKTHROUGH.md)
-
-### Fixed
-
-- Telegram message formatting
-  - Fixed: Telegram API rejected Markdown bold syntax
-  - Solution: Switched to HTML formatting (`<b>`, `<i>`)
-
-- Telegram forwarder priority handling
-  - Fixed: Inconsistent priority values (int vs string)
-  - Solution: Added priority mapping and type checking
-
-- Loki configuration for v3.0
-  - Fixed: Missing `delete_request_store` for retention
-  - Fixed: Invalid schema for Loki 3.0 (updated to v13/TSDB)
-  - Fixed: Invalid config fields incompatible with Loki 3.0
-
-- Docker network discovery
-  - Fixed: Incorrect network name `infrastructure_files_default`
-  - Solution: Changed to `infrastructure_files_netbird`
-
-- Promtail log collection
-  - Fixed: Missing `job` label causing dashboard data issues
-  - Fixed: Label mismatch (`container_name` vs `container`)
-
-- Grafana dashboard performance
-  - Fixed: Datasource UID mismatch
-  - Fixed: Perpetually loading dashboards due to missing retention policy
-  - Fixed: Permission errors on dashboard JSON files
-  - Solution: Implemented 24-hour retention, optimized dashboards with short time ranges (10 minutes vs hours)
-
-### Technical Details
-
-**Resource Overhead:**
-- Memory: ~500MB total
-- CPU: 5-8% average
-- Disk: ~1.5GB/day (with 24-hour retention)
-- Network: 2-4 Mbps for metrics and notifications
-
-**Docker Images:**
-- `netdata/netdata:latest`
-- `grafana/loki:3.0.0`
-- `grafana/promtail:3.0.0`
-- `binwiederhier/ntfy:latest`
-- `grafana/grafana:11.0.0`
-- `python:3.12-slim` (Telegram forwarder)
-
-**Services:**
-- 6 containerized monitoring services
-- All services connected to `monitoring` and `infrastructure_files_netbird` networks
-- Automatic restart policies configured
-- Health checks enabled for critical services
-
-### Security
-
-- Environment variables in `.env` (gitignored)
-- Read-only Docker socket mounts where possible
-- Services isolated on dedicated Docker network
-- Web access via HTTPS with reverse proxy
-- Behind NetBird VPN for additional security layer
-
-**Known Security Items (to be addressed in v0.1.1):**
-- Grafana using default credentials (admin/admin)
-- Netdata has no authentication
-- Consider migrating to Docker secrets for sensitive credentials
-
-### Known Limitations
-
-- Loki retention limited to 24 hours (operational monitoring focus)
-- No automated backups configured (planned for v0.2.0)
-- Monitoring stack runs on same server as monitored services
-- No redundancy or high availability
-
----
-
-## Release History
-
-- **v0.1.0** - November 24, 2025 - Initial production release
-- **Future**: v0.1.1 (Security), v0.2.0 (Auto-healing), v1.0.0 (Full stack)
-```
-
-**Files to create:**
-- `/Users/rayiskander/myOCI/CHANGELOG.md`
-
-#### Testing Requirements
-- Verify markdown renders correctly on GitHub
-- Verify all links work
-- Verify version and dates correct
+Would require:
+- Cron job setup
+- Script modification to send Telegram notifications
+- Configuration for update priorities
 
 #### Definition of Done
-- [ ] CHANGELOG.md created at project root
-- [ ] Follows Keep a Changelog format
-- [ ] All features and fixes documented
-- [ ] File committed to git
-- [ ] Referenced in release tag message
-
----
-
-### [TEST-1] Execute post-deployment verification checklist
-
-**Priority**: Medium
-**Estimated Effort**: Medium
-**Dependencies**: BLOCKER-3
-**Risk Level**: Low
-
-#### Context
-Post-deployment verification ensures all services are accessible and functioning correctly after release tagging. Critical for release confidence.
-
-#### Acceptance Criteria
-- [ ] All verification steps completed
-- [ ] All services accessible
-- [ ] All dashboards loading
-- [ ] Notifications working
-- [ ] Test results documented
-
-#### Implementation Notes
-**Run verification checklist from PLANNING.md:**
-
-```bash
-# 1. Verify Netdata dashboard accessible
-curl -I https://monitor.qubix.space
-# Expected: HTTP 200
-
-# 2. Verify Grafana dashboard accessible
-curl -I https://grafana.qubix.space
-# Expected: HTTP 200
-
-# 3. Check all three Grafana dashboards load without errors
-# Manual: Visit each dashboard URL:
-# - https://grafana.qubix.space/d/system-health
-# - https://grafana.qubix.space/d/container-details
-# - https://grafana.qubix.space/d/error-tracking
-
-# 4. Test Telegram notification pipeline
-curl -H "Priority: urgent" \
-     -d "v0.1.0 release verification test" \
-     http://159.54.162.114:8765/oci-critical
-# Expected: Telegram message received within 5 seconds
-
-# 5. Check Loki retention working
-# Query for logs older than 24 hours (should return no results)
-curl -s "http://159.54.162.114:3100/loki/api/v1/query_range?query=%7Bjob%3D%22docker%22%7D&start=$(date -d '25 hours ago' +%s)000000000&end=$(date -d '24 hours ago' +%s)000000000" | jq '.data.result | length'
-# Expected: 0 (no logs older than 24 hours)
-
-# 6. Verify container health checks passing
-docker ps --format "table {{.Names}}\t{{.Status}}" | grep -E "oci-"
-# Expected: All containers show "healthy" or "Up"
-
-# 7. Check services responding
-docker exec oci-grafana wget -qO- http://localhost:3000/api/health
-# Expected: {"database":"ok"}
-
-curl -s http://159.54.162.114:3100/ready
-# Expected: ready
-```
-
-**Create test results document: `RELEASE_v0.1.0_VERIFICATION.md`**
-
-#### Testing Requirements
-- All curl commands successful
-- All dashboards load in browser
-- Telegram message received
-- No error messages in logs
-
-#### Definition of Done
-- [ ] All verification steps completed
-- [ ] Results documented in RELEASE_v0.1.0_VERIFICATION.md
-- [ ] All tests passing
-- [ ] Any failures investigated and resolved
-- [ ] Verification document committed to git
-
----
-
-## Low Priority Tasks (ENHANCEMENTS)
-
-### [DOCS-4] Create monitoring/TROUBLESHOOTING.md
-
-**Priority**: Low
-**Estimated Effort**: Medium
-**Dependencies**: None
-**Risk Level**: Low
-
-#### Context
-Users will need troubleshooting procedures for common issues. Comprehensive troubleshooting guide helps with operational support.
-
-#### Acceptance Criteria
-- [ ] Common issues documented
-- [ ] Solutions provided for each issue
-- [ ] Diagnostic commands included
-- [ ] Escalation procedures defined
-
-#### Implementation Notes
-**Create monitoring/TROUBLESHOOTING.md with common scenarios:**
-
-Sections to include:
-1. Dashboard Issues (No Data, Slow Loading, 404 Errors)
-2. Log Collection Issues (Promtail not sending logs, Loki rejecting logs)
-3. Notification Issues (Telegram not receiving messages, ntfy down)
-4. Container Issues (Services not starting, Health checks failing)
-5. Network Issues (Services can't communicate, Port conflicts)
-6. Performance Issues (High CPU, High memory, Disk full)
-7. Data Retention Issues (Logs disappearing too quickly, Retention not working)
-
-**Files to create:**
-- `monitoring/TROUBLESHOOTING.md`
-
-#### Testing Requirements
-- Verify all diagnostic commands work
-- Test procedures on actual issues
-- Verify solutions are accurate
-
-#### Definition of Done
-- [ ] TROUBLESHOOTING.md created
-- [ ] At least 10 common issues documented
-- [ ] All commands tested
-- [ ] File committed to git
-- [ ] Cross-referenced in monitoring/README.md
-
----
-
-### [DOCS-5] Add deployment guide (monitoring/DEPLOYMENT.md)
-
-**Priority**: Low
-**Estimated Effort**: Small
-**Dependencies**: BLOCKER-2
-**Risk Level**: Low
-
-#### Context
-Step-by-step deployment guide makes it easier for others to deploy the monitoring stack. Good documentation is critical for maintainability.
-
-#### Acceptance Criteria
-- [ ] Complete deployment steps documented
-- [ ] Prerequisites listed
-- [ ] Verification steps included
-- [ ] Troubleshooting common deployment issues included
-
-#### Implementation Notes
-**Create monitoring/DEPLOYMENT.md:**
-
-Content from PLANNING.md "Deployment Steps" section expanded with:
-- Prerequisites checklist
-- Pre-deployment verification
-- Step-by-step deployment with expected outputs
-- Post-deployment verification
-- Rollback procedures
-- Common deployment issues
-
-**Files to create:**
-- `monitoring/DEPLOYMENT.md`
-
-#### Testing Requirements
-- Follow guide on fresh system (if possible)
-- Verify all commands work
-- Verify expected outputs match actual outputs
-
-#### Definition of Done
-- [ ] DEPLOYMENT.md created
-- [ ] All steps documented
-- [ ] Tested (at minimum, verify commands)
-- [ ] File committed to git
-- [ ] Referenced in monitoring/README.md
-
----
-
-### [DOCS-6] Update root README.md with quick start
-
-**Priority**: Low
-**Estimated Effort**: Small
-**Dependencies**: DOCS-5, BLOCKER-2
-**Risk Level**: Low
-
-#### Context
-Root README.md needs to be updated with installation quick start guide and link to comprehensive documentation.
-
-#### Acceptance Criteria
-- [ ] Quick start section added
-- [ ] Links to detailed docs added
-- [ ] Installation command provided
-- [ ] Architecture overview included
-
-#### Implementation Notes
-**Update /Users/rayiskander/myOCI/README.md:**
-
-Add sections:
-1. Quick Start (5-minute setup)
-2. Architecture Overview
-3. Components (brief list with links)
-4. Documentation Index (links to all guides)
-5. Screenshots/Dashboards (optional)
-
-**Files to modify:**
-- `/Users/rayiskander/myOCI/README.md`
-
-#### Testing Requirements
-- Verify markdown renders correctly
-- Verify all links work
-- Verify commands are accurate
-
-#### Definition of Done
-- [ ] README.md updated
-- [ ] Quick start section complete
-- [ ] All links working
-- [ ] File committed to git
-
----
-
-### [FEATURE-1] Pin Docker image versions
-
-**Priority**: Low
-**Estimated Effort**: Small
-**Dependencies**: None
-**Risk Level**: Medium
-
-#### Context
-Using `:latest` tags for netdata and ntfy can cause unexpected changes. Production should use pinned versions for stability.
-
-#### Acceptance Criteria
-- [ ] Netdata version pinned
-- [ ] ntfy version pinned
-- [ ] docker-compose.yml updated
-- [ ] Version numbers documented
-
-#### Implementation Notes
-**Find current versions:**
-```bash
-docker inspect netdata/netdata:latest | jq '.[0].Config.Labels."org.opencontainers.image.version"'
-docker inspect binwiederhier/ntfy:latest | jq '.[0].Config.Labels.version'
-```
-
-**Update docker-compose.yml:**
-```yaml
-services:
-  netdata:
-    image: netdata/netdata:v1.45.0  # Pin specific version
-
-  ntfy:
-    image: binwiederhier/ntfy:v2.8.0  # Pin specific version
-```
-
-**Files to modify:**
-- `monitoring/docker-compose.yml`
-
-#### Testing Requirements
-- Verify containers start with pinned versions
-- Verify functionality unchanged
-- Test on local system first
-
-#### Definition of Done
-- [ ] Versions pinned in docker-compose.yml
-- [ ] Services tested and working
-- [ ] Version numbers documented in CHANGELOG.md
-- [ ] File committed to git
-
----
-
-## Deferred Tasks (Future Releases)
-
-### [FEATURE-2] Implement Phase 3 auto-healing
-
-**Priority**: Deferred to v0.2.0
-**Estimated Effort**: Large
-**Dependencies**: v0.1.0 stable for 2-4 weeks
-**Risk Level**: High
-
-#### Context
-Auto-healing with Docker Autoheal and Watchtower is planned for Phase 3. Deferred to v0.2.0 to allow v0.1.0 to stabilize.
-
-#### Scope
-- Deploy Docker Autoheal (tmknight/docker-autoheal)
-- Deploy Watchtower
-- Add health checks to all containers
-- Configure restart policies
-- Test auto-recovery scenarios
-
-**Deferred until:** v0.2.0 (after 2-4 weeks of v0.1.0 stability)
-
----
-
-### [FEATURE-3] Configure Netdata alert integration
-
-**Priority**: Deferred to v0.1.1 or v0.2.0
-**Estimated Effort**: Medium
-**Dependencies**: ntfy ACLs configured
-**Risk Level**: Medium
-
-#### Context
-Netdata has built-in alerting that can send notifications to ntfy. This would provide automated alerting beyond manual testing.
-
-#### Scope
-- Configure Netdata health checks
-- Set up ntfy notification plugin
-- Define alert thresholds
-- Test alert delivery
-
-**Deferred until:** v0.1.1 or v0.2.0
-
----
-
-### [FEATURE-4] Configure Grafana alerting rules
-
-**Priority**: Deferred to v0.2.0
-**Estimated Effort**: Medium
-**Dependencies**: Grafana authentication configured
-**Risk Level**: Low
-
-#### Context
-Grafana can generate alerts based on log queries. Useful for automated detection of error patterns.
-
-#### Scope
-- Define alerting rules (error rate, container restarts, etc.)
-- Configure notification channels (ntfy, Telegram)
-- Set up alert groups and routing
-- Test alert generation
-
-**Deferred until:** v0.2.0
-
----
-
-### [TEST-2] Implement automated testing suite
-
-**Priority**: Deferred to v0.3.0
-**Estimated Effort**: Large
-**Dependencies**: Stable production environment
-**Risk Level**: Low
-
-#### Context
-Automated tests would improve confidence in changes. Currently relying on manual testing.
-
-#### Scope
-- Integration tests for notification pipeline
-- End-to-end tests for dashboards
-- Health check verification tests
-- Performance tests
-
-**Deferred until:** v0.3.0
+- [ ] Explicitly deferred (note in PLANNING.md for v0.2.1)
 
 ---
 
 ## Task Statistics
 
-**Total Tasks**: 19
-- **High Priority (Blockers)**: 3
-- **Medium Priority (Important)**: 6
-- **Low Priority (Enhancements)**: 6
-- **Deferred (Future Releases)**: 4
+**Total Tasks**: 24
 
-**Estimated Total Effort:**
-- High Priority: 3 small tasks = ~2-3 hours
-- Medium Priority: 6 tasks (4 small, 2 medium) = ~5-7 hours
-- Low Priority: 6 tasks (4 small, 2 medium) = ~5-7 hours
-- **Total for v0.1.0**: 12-17 hours of focused work
+**By Priority**:
+- **Pre-Implementation**: 3 tasks (must complete before Dec 1)
+- **High Priority (Blockers)**: 5 tasks (must complete for v0.2.0)
+- **Medium Priority**: 6 tasks (should complete for v0.2.0)
+- **Low Priority (Deferred)**: 5 tasks (explicitly deferred to future releases)
+- **Deployment**: 2 tasks (final deployment and verification)
+- **Optional**: 3 tasks (can skip or defer)
 
-**Estimated Timeline:**
-- Working 2-3 tasks per day (2-4 hours/day)
-- **High Priority (Blockers)**: 1 day
-- **Medium Priority**: 2-3 days
-- **Low Priority**: 2-3 days
-- **Total**: 5-7 days to complete all v0.1.0 tasks
+**By Estimated Effort**:
+- **Small (15-45 min)**: 10 tasks
+- **Medium (1-3 hours)**: 6 tasks
+- **Large (3-4 hours)**: 8 tasks
 
-**Recommended Schedule:**
-- **Day 1** (Today): Complete all 3 blockers → Ready for v0.1.0 release
-- **Days 2-3**: Complete medium priority tasks (deployment verification, backups, security)
-- **Days 4-7**: Complete low priority tasks (documentation enhancements)
+**Total Estimated Effort**:
+- **High Priority (Blockers)**: ~10-15 hours
+- **Medium Priority**: ~3-4 hours
+- **Pre-Implementation**: ~1 hour
+- **Deployment**: ~2-3 hours
+- **Total for v0.2.0**: ~16-23 hours
+
+**Estimated Timeline** (working 3-4 hours/day):
+- **Pre-Implementation (Nov 24-30)**: 1 day (complete before Dec 1)
+- **High Priority (Dec 1-5)**: 4-5 days
+- **Medium Priority (Dec 6-7)**: 1-2 days
+- **Deployment (Dec 8)**: 1 day
+- **Total**: 7-9 days
+
+**Work Pattern**:
+- **Week 1 Prep (Nov 24-30)**: Complete PRE tasks (3 tasks, 1 hour)
+- **Week 2 Implementation (Dec 1-7)**: Complete BLOCKER and DOCS tasks (11 tasks, ~16-19 hours)
+- **Week 3 Deployment (Dec 8)**: Deploy and verify (2 tasks, ~2-3 hours)
 
 ---
 
 ## Progress Tracking
 
-Update this section as tasks are completed:
+**Update this section as work progresses:**
 
-**Completed**: 0/19
-**In Progress**: 0/19
-**Blocked**: 0/19
+**Completed**: 0/24 (0%)
+**In Progress**: 0/24
+**Blocked**: 0/24
 
-**Last Updated**: November 24, 2025
+**Current Sprint**: Pre-Implementation (Nov 24-30)
+**Next Sprint**: Implementation (Dec 1-7)
+
+**Last Updated**: 2025-11-24
+
+---
+
+## Notes
+
+### Open Questions Status
+- **Q1** (PRE-1): Current production versions - NEEDS RESOLUTION
+- **Q2** (BLOCKER-4): Script remote registry queries - DECIDE DURING IMPLEMENTATION (recommended: optional flag)
+- **Q3** (BLOCKER-1): Single vs multiple docs - RECOMMEND SINGLE FILE
+- **Q4** (Scripts location): RECOMMEND TOP-LEVEL scripts/
+- **Q5** (Timeline): RECOMMEND 1 WEEK WAIT (Dec 1 start)
+- **Q6** (Release candidate): RECOMMEND NO MANDATORY RC
+- **Q7** (Update approval): DEFINE IN UPDATE_POLICY.md (recommended: security auto, features manual)
+- **Q8** (PRE-2): Scope boundaries - NEEDS DECISION (recommended: monitoring + critical)
+
+### Risks to Monitor
+- **Version pinning**: Ensure versions from PRE-1 are currently deployed versions (mitigate by pinning exactly what's running)
+- **Script Docker access**: May need testing on production server (mitigate with read-only access, already granted)
+- **Documentation accuracy**: Cross-check all version numbers (mitigate with thorough review)
+- **Deployment timing**: Ensure v0.1.0 stable for 1 week first (mitigate by waiting until Dec 1)
+
+### Success Criteria
+- [ ] All BLOCKER tasks completed
+- [ ] All DOCS tasks completed
+- [ ] Deployment successful with zero downtime (documentation phase)
+- [ ] Brief downtime acceptable for version pinning (<5 minutes)
+- [ ] Version check script working on production
+- [ ] All documentation accurate and complete
+- [ ] Git tag v0.2.0 created and pushed
+- [ ] 24-hour stability validation passed
+
+---
+
+**TODO Document Version**: 1.0
+**Created**: 2025-11-24
+**For Release**: v0.2.0 (Dependency Management System)
+**Strategic Plan**: .claude/PLANNING.md
+**Target Start**: December 1, 2025
+**Target Completion**: December 8, 2025

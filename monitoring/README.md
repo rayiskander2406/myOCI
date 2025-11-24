@@ -15,6 +15,7 @@ Comprehensive monitoring, logging, and alerting stack for OCI server in Cairo, E
 ### Alerting & Notifications
 - **ntfy** (latest): Notification delivery server
 - **Telegram Forwarder** (Python 3.9): Automated alert forwarding to Telegram
+- **Health Check** (Python 3.11): Infrastructure health monitoring with 12-hour heartbeat (0-100 score)
 
 ## Quick Start
 

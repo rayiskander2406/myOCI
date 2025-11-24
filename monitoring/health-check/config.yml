@@ -1,0 +1,127 @@
+# Infrastructure Health Check Configuration
+# Version: 1.0
+# Last Updated: 2025-11-24
+
+# Health Score Calculation
+# Score starts at 100 and points are deducted based on issues
+# Final score: 100 - (sum of all deductions)
+
+# Container Health Checks
+containers:
+  critical:  # Critical services - higher penalty if down
+    - name: oci-loki
+      display: Loki
+      penalty_down: 20
+      penalty_restart: 5
+    - name: oci-grafana
+      display: Grafana
+      penalty_down: 20
+      penalty_restart: 5
+    - name: oci-ntfy
+      display: ntfy
+      penalty_down: 20
+      penalty_restart: 5
+
+  standard:  # Standard services - moderate penalty
+    - name: oci-netdata
+      display: Netdata
+      penalty_down: 10
+      penalty_restart: 5
+    - name: oci-promtail
+      display: Promtail
+      penalty_down: 10
+      penalty_restart: 5
+    - name: oci-telegram-forwarder
+      display: Telegram Forwarder
+      penalty_down: 10
+      penalty_restart: 5
+
+# System Resource Thresholds
+resources:
+  cpu:
+    critical_threshold: 80  # % CPU usage
+    warning_threshold: 60
+    critical_penalty: 10
+    warning_penalty: 5
+
+  memory:
+    critical_threshold: 85  # % Memory usage
+    warning_threshold: 70
+    critical_penalty: 10
+    warning_penalty: 5
+
+  disk:
+    critical_threshold: 90  # % Disk usage
+    warning_threshold: 80
+    critical_penalty: 15
+    warning_penalty: 5
+    path: /  # Root filesystem
+
+# Service Response Checks (optional - can be disabled)
+service_checks:
+  enabled: true
+  timeout: 2  # seconds
+  slow_response_penalty: 2
+
+  endpoints:
+    - name: Netdata
+      url: http://oci-netdata:19999
+      method: GET
+    - name: Grafana
+      url: http://oci-grafana:3000/api/health
+      method: GET
+    - name: ntfy
+      url: http://oci-ntfy:80/v1/health
+      method: GET
+    - name: Loki
+      url: http://oci-loki:3100/ready
+      method: GET
+
+# Container Restart Detection
+restart_detection:
+  enabled: true
+  recent_window: 43200  # 12 hours in seconds
+  old_window: 86400     # 24 hours in seconds
+  recent_penalty: 5     # Penalty for restart in recent window
+  old_penalty: 2        # Penalty for restart in old window
+
+# Health Score Ranges (for message formatting)
+score_ranges:
+  excellent:  # 90-100
+    min: 90
+    emoji: "🟢"
+    label: "Excellent"
+  good:       # 75-89
+    min: 75
+    emoji: "🟡"
+    label: "Good"
+  fair:       # 60-74
+    min: 60
+    emoji: "🟠"
+    label: "Fair"
+  poor:       # 40-59
+    min: 40
+    emoji: "🔴"
+    label: "Poor"
+  critical:   # 0-39
+    min: 0
+    emoji: "🚨"
+    label: "Critical"
+
+# Notification Settings
+notification:
+  enabled: true
+  ntfy_url: http://oci-ntfy
+  ntfy_topic: monitoring-alerts
+  include_details: true      # Include breakdown in message
+  max_detail_items: 10       # Max issues to list in detail
+
+# Future Enhancements (placeholder)
+# These will be implemented in future versions
+log_analysis:
+  enabled: false
+  # Check Loki for error rates, specific patterns, etc.
+
+network_checks:
+  enabled: false
+  # Ping external services, check connectivity

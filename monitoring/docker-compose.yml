@@ -155,6 +155,28 @@ services:
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
 
+  # Health Check - Infrastructure health monitoring with 12-hour heartbeat
+  health-check:
+    build:
+      context: ./health-check
+      dockerfile: Dockerfile
+    container_name: oci-health-check
+    hostname: health-check-cairo
+    restart: unless-stopped
+    user: "0"  # Run as root to access Docker socket
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro  # Docker API access for container checks
+      - ./health-check/config.yml:/app/config.yml:ro  # Mount config for easy updates
+    environment:
+      - TZ=Africa/Cairo
+    networks:
+      - monitoring
+    depends_on:
+      ntfy:
+        condition: service_healthy
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
 networks:
   monitoring:
     driver: bridge
