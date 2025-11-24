@@ -1,6 +1,6 @@
 # Web Access - Current Status & Instructions
 
-**Updated:** November 23, 2025 - 21:30 EET
+**Updated:** November 24, 2025 - 07:22 EET
 
 ---
 
@@ -10,6 +10,7 @@
 - **HTTPS:** ✅ Both domains have valid SSL
 - **DNS:** ✅ Both domains resolving correctly
 - **Caddy:** ✅ Running and routing requests
+- **Grafana Dashboards:** ✅ Created and optimized (15-min time ranges)
 
 ---
 
@@ -37,14 +38,20 @@ http://localhost:19999
 ### Grafana Dashboard
 **URL:** https://grafana.qubix.space
 
-**Current Status:** ⚠️ Still starting up (loading plugins)
+**Current Status:** ✅ Working with dashboards!
 - SSL is working
 - Container is running
-- Takes 30-60 seconds to fully start
+- 3 dashboards automatically provisioned
+- Optimized for performance (15-min time ranges)
 
-**Expected Credentials (once loaded):**
+**Credentials:**
 - Username: `admin`
 - Password: `admin` (change on first login)
+
+**Available Dashboards:**
+1. **System Overview** - High-level system health and stats
+2. **Container Monitoring** - Per-container logs and metrics
+3. **Logs Explorer** - Detailed log exploration by priority/service
 
 **Temporary Workaround - Direct Access:**
 ```bash
