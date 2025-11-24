@@ -1,12 +1,20 @@
-# OCI Server Monitoring Stack - Week 1
+# OCI Server Monitoring Stack - v0.1.0
 
-Lightweight, battle-tested monitoring stack for OCI server in Cairo, Egypt.
+Comprehensive monitoring, logging, and alerting stack for OCI server in Cairo, Egypt.
 
 ## Components
 
-- **Netdata** (v3.0): Real-time monitoring with 1-second granularity
-- **Loki** (v3.0.0): Log aggregation system
-- **Promtail** (v3.0.0): Log collection agent
+### Monitoring & Metrics
+- **Netdata** (latest): Real-time monitoring with 1-second granularity
+- **Grafana** (11.0.0): Visualization platform with pre-built dashboards
+
+### Logging
+- **Loki** (2.9.3): Log aggregation system with 24-hour retention
+- **Promtail** (2.9.3): Log collection agent with priority-based labels
+
+### Alerting & Notifications
+- **ntfy** (latest): Notification delivery server
+- **Telegram Forwarder** (Python 3.9): Automated alert forwarding to Telegram
 
 ## Quick Start
 
@@ -26,22 +34,66 @@ cd ~/monitoring
 docker compose up -d
 ```
 
-### 2. Access Dashboards
+###  2. Configure Environment Variables
 
-- **Netdata:** http://159.54.162.114:19999
-- **Loki:** http://159.54.162.114:3100 (API only, no UI)
+**Required for Telegram Integration:**
 
-### 3. Verify Services
+Create a `.env` file in the `~/monitoring` directory on your server:
 
 ```bash
-# Check containers are running
+# On the server
+cd ~/monitoring
+nano .env
+```
+
+Add the following variables:
+
+```env
+TELEGRAM_BOT_TOKEN=your_bot_token_here
+TELEGRAM_CHAT_ID=your_chat_id_here
+```
+
+**Getting Telegram Credentials:**
+
+1. **Create a Telegram Bot:**
+   - Open Telegram and search for `@BotFather`
+   - Send `/newbot` and follow the prompts
+   - Copy the bot token (format: `1234567890:ABCdefGHIjklMNOpqrsTUVwxyz`)
+
+2. **Get Your Chat ID:**
+   - Start a chat with your new bot
+   - Send any message to the bot
+   - Visit: `https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates`
+   - Find your `chat_id` in the response (it's a number like `-1001234567890`)
+
+3. **Secure the `.env` file:**
+   ```bash
+   chmod 600 .env
+   ```
+
+**Security Warning:** Never commit the `.env` file to git. The `.gitignore` should already exclude it.
+
+### 3. Access Dashboards
+
+- **Netdata:** https://monitor.qubix.space (HTTPS via Caddy, auth required)
+- **Grafana:** https://grafana.qubix.space (HTTPS via Caddy, login: admin/admin)
+- **ntfy:** https://notify.qubix.space (HTTPS via Caddy)
+- **Loki:** http://localhost:3100 (Internal API only, no UI)
+
+### 4. Verify Services
+
+```bash
+# Check all containers are running
 docker compose ps
 
-# Check Netdata logs
-docker compose logs netdata
+# Check Grafana is working
+docker compose logs grafana
 
-# Check Loki is receiving logs
-docker compose logs promtail
+# Check Telegram forwarder is running
+docker compose logs telegram-forwarder
+
+# Verify Loki is receiving logs
+docker compose logs promtail | grep "Successfully sent batch"
 ```
 
 ## Configuration
@@ -56,18 +108,34 @@ docker compose logs promtail
 - Coturn TURN/STUN server
 
 ### Log Retention
-- **Loki:** 7 days
+- **Loki:** 24 hours (optimized for performance)
 - **Netdata:** 14 days (configurable)
+- **Grafana Dashboards:** Optimized for 10-minute time ranges
 
-### Alerts
-Netdata will alert when critical containers are down for >1 minute.
+### Grafana Dashboards
+Six pre-configured dashboards available at https://grafana.qubix.space:
+1. **System Health** - Container and log monitoring overview
+2. **Container Details** - Deep dive into individual containers
+3. **Error Tracking** - System-wide error analysis
+4. **System Overview** - Comprehensive system status
+5. **Logs Explorer** - Interactive log exploration
+6. **Container Monitoring** - Multi-container performance
 
-## Next Steps (Week 2)
+See `DASHBOARDS_GUIDE.md` for detailed usage instructions.
 
-1. Deploy ntfy notification server
-2. Configure Telegram bot integration
-3. Connect Netdata alerts to ntfy
-4. Set up alert routing (critical/warning/info)
+### Alerts & Notifications
+- **Netdata** alerts on critical container failures (>1 minute downtime)
+- **Telegram** forwarding for critical/high priority alerts
+- **ntfy** server for notification delivery
+
+## Environment Variables Reference
+
+| Variable | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `TELEGRAM_BOT_TOKEN` | Yes | Bot token from @BotFather | `1234567890:ABCdefGHIjklMNOpqrsTUVwxyz` |
+| `TELEGRAM_CHAT_ID` | Yes | Your Telegram chat ID | `-1001234567890` |
+
+**Important:** Store these in `~/monitoring/.env` file on the server. Never commit to git.
 
 ## Troubleshooting
 
