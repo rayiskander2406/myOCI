@@ -13,8 +13,8 @@ services:
     security_opt:
       - apparmor:unconfined
     volumes:
-      # Netdata configuration
-      - ./netdata/config:/etc/netdata:ro
+      # Netdata configuration (writable to allow stock config initialization)
+      - ./netdata/config:/etc/netdata
       - ./netdata/config/custom-plugins.d/ntfy-notify.sh:/etc/netdata/custom-plugins.d/ntfy-notify.sh:ro
       - netdatalib:/var/lib/netdata
       - netdatacache:/var/cache/netdata
