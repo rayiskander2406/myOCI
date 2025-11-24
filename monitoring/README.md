@@ -191,6 +191,23 @@ docker compose logs -f
 docker volume rm monitoring_loki-data
 ```
 
+## Backup & Recovery
+
+For comprehensive backup and recovery procedures, see **[BACKUP.md](BACKUP.md)**.
+
+Key features:
+- Manual and automated backup procedures
+- Step-by-step recovery workflows
+- Full disaster recovery guide
+- Backup verification and testing
+- Encrypted .env backup procedures
+
+Quick backup commands available in BACKUP.md for:
+- Grafana dashboards and configuration
+- Docker compose files and service configs
+- Environment variables (encrypted)
+- Complete stack backup script
+
 ## Architecture
 
 ```
