@@ -208,6 +208,25 @@ Quick backup commands available in BACKUP.md for:
 - Environment variables (encrypted)
 - Complete stack backup script
 
+## Security
+
+For security hardening procedures and best practices, see **[SECURITY.md](SECURITY.md)**.
+
+Key features:
+- Current security posture assessment
+- 3-phase security roadmap (v0.1.1 → v0.3.0)
+- Implementation guides for authentication and secrets management
+- Docker socket security and network isolation
+- Incident response procedures
+- Security checklists (pre-production, post-production, ongoing)
+
+Quick security tasks:
+- Enable Grafana strong password authentication
+- Configure Caddy basic auth for Netdata
+- Migrate to Docker secrets
+- Enable ntfy ACLs
+- Rate limiting and fail2ban setup
+
 ## Architecture
 
 ```
