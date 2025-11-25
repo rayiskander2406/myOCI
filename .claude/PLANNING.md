@@ -52,22 +52,22 @@ ec45860 Add /review-progress command for comprehensive release progress analysis
 #### 1. SSH Key Permissions (Local Development Machine)
 | Attribute | Value |
 |-----------|-------|
-| **Current State** | `sshkey-netbird-private.key` has permissions 644 (world-readable) |
-| **Risk** | Anyone with local machine access can read the key |
-| **Impact** | Complete server compromise |
-| **Fix** | `chmod 600 sshkey-netbird-private.key` |
+| **Current State** | ~~`sshkey-netbird-private.key` has permissions 644~~ → Fixed + unused key deleted |
+| **Risk** | ~~Anyone with local machine access can read the key~~ → Resolved |
+| **Impact** | ~~Complete server compromise~~ → Mitigated |
+| **Fix** | `chmod 600` applied, unused key in myOCI/ deleted |
 | **Effort** | 1 minute |
-| **Status** | [ ] Not started |
+| **Status** | [x] **COMPLETED** (2025-11-25) |
 
 #### 2. SSH Key Not in .gitignore (Root Level)
 | Attribute | Value |
 |-----------|-------|
-| **Current State** | No root-level `.gitignore` exists; key shows as untracked |
-| **Risk** | Accidental commit would expose key permanently |
-| **Impact** | Key leaked to any repository viewers |
-| **Fix** | Create root `.gitignore` with `*.key` and `*.pem` patterns |
+| **Current State** | ~~No root-level `.gitignore` exists~~ → Created |
+| **Risk** | ~~Accidental commit would expose key permanently~~ → Protected |
+| **Impact** | ~~Key leaked to any repository viewers~~ → Mitigated |
+| **Fix** | Created `.gitignore` with `*.key`, `*.pem`, `.env` patterns |
 | **Effort** | 2 minutes |
-| **Status** | [ ] Not started |
+| **Status** | [x] **COMPLETED** (2025-11-25, commit 547c41b) |
 
 ---
 
@@ -167,8 +167,9 @@ ec45860 Add /review-progress command for comprehensive release progress analysis
 ## Release Requirements
 
 ### Must Have (Blockers for v0.1.1)
-- [ ] Fix SSH key permissions (`chmod 600`)
-- [ ] Create root `.gitignore` to protect sensitive files
+- [x] Fix SSH key permissions (`chmod 600`) - **DONE**
+- [x] Create root `.gitignore` to protect sensitive files - **DONE** (commit 547c41b)
+- [x] Delete unused SSH key from myOCI/ directory - **DONE**
 - [ ] Change Grafana admin password on server
 - [ ] Configure Caddy BasicAuth for Netdata
 - [ ] Bind Loki to localhost only
@@ -1019,18 +1020,196 @@ sudo systemctl restart sshd
 
 ---
 
-**Planning Document Version:** 3.0
+**Planning Document Version:** 4.0
 **Created:** November 25, 2025
-**Updated:** November 25, 2025 (added SSH login security features)
+**Updated:** November 25, 2025 (v0.1.1 progress + v0.3.0 passive income planning)
 **Author:** Claude Code
-**Status:** v0.1.1 ready for implementation, v0.2.0 planned
+**Status:** v0.1.1 in progress (3/6 complete), v0.2.0 planned, v0.3.0 planned
 
 ---
 
-## v0.3.0 Preview (Future)
+## v0.3.0 Planning - Passive Income & Advanced Features
 
-Features deferred from v0.2.0:
+### Release Overview
+- **Proposed Version**: 0.3.0
+- **Release Type**: Minor (New Features)
+- **Target Date**: After v0.2.0 stabilization
+- **Risk Level**: Low (optional services, isolated from core infrastructure)
+
+### Scope
+
+v0.3.0 focuses on:
+1. **Passive Income Services** - Bandwidth sharing for passive revenue
+2. **Deferred v0.2.0 items** - Telegram SSH approval, advanced monitoring
+3. **Infrastructure optimization** - Resource monitoring for income services
+
+---
+
+### Passive Income Services (NEW)
+
+#### Server Resource Assessment (Actual)
+| Resource | Total | Used | Available |
+|----------|-------|------|-----------|
+| **CPU** | 2 vCPU (AMD EPYC) | ~10% | ~90% |
+| **RAM** | 956 MB | 619 MB (65%) | **337 MB** |
+| **Disk** | 45 GB | 13 GB (28%) | **32 GB** |
+| **Bandwidth** | 480 Mbps | Variable | Available |
+
+#### Recommended Services (Resource-Appropriate)
+
+| Service | RAM | CPU | Expected Income | Priority |
+|---------|-----|-----|-----------------|----------|
+| **Grass.io** | ~20 MB | ~0% | $5-20/month | Must Have |
+| **Honeygain** | ~30 MB | ~0% | $1-10/month | Must Have |
+| **PacketStream** | ~20 MB | ~0% | $1-5/month | Must Have |
+| **Combined** | **~70 MB** | **~1%** | **$7-35/month** | - |
+
+**Post-deployment available RAM**: 337 - 70 = **267 MB** ✅
+
+#### Services NOT Recommended (Insufficient Resources)
+
+| Service | Requirement | Status |
+|---------|-------------|--------|
+| Flux Nodes | 4+ GB RAM | ❌ Insufficient RAM |
+| Storj | 200+ MB RAM | ⚠️ Too tight |
+| Crypto Mining | 100% CPU | ❌ Not viable on 2 vCPU |
+| Akash Provider | 2+ GB RAM | ❌ Insufficient RAM |
+
+#### Implementation
+
+**docker-compose.passive-income.yml:**
+```yaml
+version: '3.8'
+
+services:
+  # Grass.io - AI data network (~$5-20/month)
+  grass:
+    image: grassio/grass-node:latest
+    container_name: passive-grass
+    restart: unless-stopped
+    environment:
+      - GRASS_USER=${GRASS_EMAIL}
+      - GRASS_PASS=${GRASS_PASS}
+    mem_limit: 50m
+    cpus: 0.1
+    networks:
+      - passive-income
+
+  # Honeygain - bandwidth sharing (~$1-10/month)
+  honeygain:
+    image: honeygain/honeygain:latest
+    container_name: passive-honeygain
+    restart: unless-stopped
+    command: -tou-accept -email ${HG_EMAIL} -pass ${HG_PASS} -device oci-cairo
+    mem_limit: 50m
+    cpus: 0.1
+    networks:
+      - passive-income
+
+  # PacketStream - bandwidth marketplace (~$1-5/month)
+  packetstream:
+    image: packetstream/psclient:latest
+    container_name: passive-packetstream
+    restart: unless-stopped
+    environment:
+      - CID=${PACKETSTREAM_CID}
+    mem_limit: 50m
+    cpus: 0.1
+    networks:
+      - passive-income
+
+networks:
+  passive-income:
+    name: passive-income
+```
+
+**Environment Variables (.env):**
+```bash
+# Grass.io
+GRASS_EMAIL=your@email.com
+GRASS_PASS=your_password
+
+# Honeygain
+HG_EMAIL=your@email.com
+HG_PASS=your_password
+
+# PacketStream
+PACKETSTREAM_CID=your_cid
+```
+
+#### Deployment Steps
+
+1. Sign up for accounts:
+   - Grass.io: https://app.getgrass.io/
+   - Honeygain: https://honeygain.com/
+   - PacketStream: https://packetstream.io/
+
+2. Create docker-compose file on server
+3. Configure environment variables
+4. Deploy: `docker compose -f docker-compose.passive-income.yml up -d`
+5. Monitor resource usage for 24-48 hours
+6. Add to health check monitoring
+
+#### Monitoring Integration
+
+Add to existing health check:
+```yaml
+# config.yml addition
+containers:
+  passive-grass:
+    priority: low
+    restart_threshold: 5
+  passive-honeygain:
+    priority: low
+    restart_threshold: 5
+  passive-packetstream:
+    priority: low
+    restart_threshold: 5
+```
+
+---
+
+### Deferred Features from v0.2.0
+
 - **Telegram interactive SSH approval** (Approve/Deny buttons with timeout)
 - DDoS monitoring dashboard in Grafana
 - Automated "Under Attack" mode trigger
 - Enhanced security event monitoring
+
+---
+
+### v0.3.0 Release Requirements
+
+#### Must Have
+- [ ] Grass.io container deployment
+- [ ] Honeygain container deployment
+- [ ] PacketStream container deployment
+- [ ] Resource usage monitoring for 48 hours
+- [ ] Documentation for passive income setup
+
+#### Should Have
+- [ ] Add passive services to health check
+- [ ] Grafana dashboard for passive income containers
+- [ ] Telegram SSH interactive approval
+
+#### Nice to Have
+- [ ] Income tracking/reporting
+- [ ] Automated service restart on low earnings
+- [ ] DDoS monitoring dashboard
+
+---
+
+### v0.3.0 Timeline Estimate
+
+| Task | Effort | Dependencies |
+|------|--------|--------------|
+| Account signups | 30 min | None |
+| Docker compose creation | 30 min | Accounts |
+| Deployment | 15 min | Compose file |
+| 48-hour monitoring | 48 hours | Deployment |
+| Health check integration | 1 hour | Monitoring |
+| Documentation | 1 hour | All above |
+| Telegram SSH approval | 4-8 hours | None |
+| **Total** | **~8-12 hours** | + 48hr wait |
+
+**Target**: 2 weeks after v0.2.0 release
