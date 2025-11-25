@@ -882,13 +882,36 @@ sudo fail2ban-client status grafana
 
 ## Deferred Items from v0.1.1
 
-### 1. Docker Secrets Migration
+### 1. Encrypted Secrets Vault (Redis + Age)
 | Attribute | Value |
 |-----------|-------|
 | **Current** | Telegram tokens in plain `.env` |
-| **Target** | Docker secrets (encrypted at rest) |
-| **Effort** | 1 hour |
+| **Target** | E2E encrypted vault with Age asymmetric encryption |
+| **Effort** | 2-3 hours |
 | **Priority** | HIGH |
+| **RAM** | ~50 MB (Redis Alpine + API) |
+| **Security** | True E2E - server never sees plaintext |
+
+**Architecture:**
+```
+┌──────────────┐    encrypted    ┌──────────────┐    encrypted    ┌──────────────┐
+│   Client     │ ──────────────► │ Redis Vault  │ ──────────────► │   Client     │
+│ (Age pubkey) │    in transit   │ (at rest)    │    in transit   │ (Age privkey)│
+└──────────────┘                 └──────────────┘                 └──────────────┘
+```
+
+**Components:**
+- Redis Alpine (~30 MB) - encrypted storage backend
+- Age encryption - asymmetric, modern, audited
+- Python API (~20 MB) - REST interface
+- CLI tool - for manual operations
+
+**Why Redis + Age over Docker Secrets:**
+- True E2E encryption (not just at-rest)
+- Works without Swarm mode
+- API access for automation
+- Asymmetric = can encrypt without private key
+- Same Age key used for SOPS file encryption
 
 ### 2. ntfy ACLs
 | Attribute | Value |
@@ -939,17 +962,19 @@ sudo fail2ban-client status grafana
 ### Must Have (Blockers)
 - [ ] **SSH Telegram notifications** - Instant alerts on login attempts
 - [ ] **SSH TOTP 2FA** - Two-factor authentication with Google Authenticator/KeePass
+- [ ] **Redis + Age Vault** - E2E encrypted secrets storage (~50 MB RAM)
 - [ ] Cloudflare integration (or Caddy rate limiting minimum)
 - [ ] Fail2ban installation and configuration
-- [ ] Docker secrets for Telegram credentials
 - [ ] Pin Netdata and ntfy versions
 
 ### Should Have
 - [ ] SSH failed login notifications
+- [ ] Vault CLI tool for easy secret management
 - [ ] ntfy ACLs enabled
 - [ ] Docker socket proxy
 - [ ] DEPENDENCIES.md documentation
 - [ ] Caddy rate limiting (as Cloudflare backup)
+- [ ] SOPS + Age for encrypted .env files in git
 
 ### Nice to Have (Defer to v0.3.0)
 - [ ] **Telegram interactive SSH approval** (Approve/Deny buttons)
@@ -971,22 +996,33 @@ sudo fail2ban-client status grafana
 7. **Verify OCI console access (backup if SSH fails)**
 
 ### Deployment Order
-1. **SSH Telegram notifications** (low risk, test first)
-2. **Cloudflare** (can be done independently, DNS propagation: 24-48h)
-3. **Fail2ban** (independent, no downtime)
-4. **SSH TOTP 2FA** (CRITICAL: Test in new terminal before closing session!)
-5. **Docker secrets** (requires container restart)
-6. **Version pinning** (may require image pull)
-7. **ntfy ACLs** (requires ntfy restart)
-8. **Docker socket proxy** (requires health-check restart)
+1. **Age key generation** (prerequisite for vault)
+2. **Redis + Age Vault** (deploy encrypted secrets storage)
+3. **Migrate secrets to vault** (Telegram tokens, passwords)
+4. **SSH Telegram notifications** (low risk, test first)
+5. **Cloudflare** (can be done independently, DNS propagation: 24-48h)
+6. **Fail2ban** (independent, no downtime)
+7. **SSH TOTP 2FA** (CRITICAL: Test in new terminal before closing session!)
+8. **Version pinning** (may require image pull)
+9. **ntfy ACLs** (requires ntfy restart)
+10. **Docker socket proxy** (requires health-check restart)
 
 ### Rollback Plan
+- **Redis + Age Vault**: Revert to `.env` files, stop vault containers
 - **SSH TOTP**: Remove lines from `/etc/pam.d/sshd`, restart sshd
 - **SSH notifications**: Remove PAM exec line (non-blocking, safe)
 - Cloudflare: Switch DNS back to direct (instant via "pause")
 - Fail2ban: `sudo systemctl stop fail2ban`
-- Docker secrets: Revert to `.env` environment variables
 - Other: Restore from backup docker-compose.yml
+
+**Vault Emergency Recovery:**
+```bash
+# If vault is unavailable, revert to .env:
+docker compose -f docker-compose.vault.yml down
+# Restore .env.backup
+cp .env.backup .env
+docker compose up -d
+```
 
 **TOTP Emergency Recovery:**
 ```bash
@@ -1004,27 +1040,113 @@ sudo systemctl restart sshd
 
 | Task | Effort | Dependencies |
 |------|--------|--------------|
+| **Age key generation** | 15 min | None |
+| **Redis + Age Vault deployment** | 2 hours | Age key |
+| **Secrets migration to vault** | 1 hour | Vault |
 | **SSH Telegram notifications** | 1-2 hours | None |
 | **SSH TOTP 2FA** | 1-2 hours | None |
 | Cloudflare setup | 1 hour | None |
 | DNS propagation | 24-48 hours | Cloudflare |
 | Fail2ban | 1 hour | None |
-| Docker secrets | 1 hour | None |
 | Version pinning | 30 min | None |
 | ntfy ACLs | 30 min | None |
 | Docker socket proxy | 30 min | None |
+| SOPS setup for .env files | 30 min | Age key |
 | Documentation | 2 hours | All above |
-| **Total** | **~10-12 hours** | + DNS wait |
+| **Total** | **~13-16 hours** | + DNS wait |
 
 **Target**: 1 week after v0.1.1 release
 
 ---
 
-**Planning Document Version:** 4.0
+## Redis + Age Vault Implementation Details
+
+### Docker Compose Configuration
+```yaml
+# docker-compose.vault.yml
+version: '3.8'
+
+services:
+  vault-db:
+    image: redis:7-alpine
+    container_name: vault-db
+    restart: unless-stopped
+    command: >
+      redis-server
+      --requirepass ${VAULT_REDIS_PASSWORD}
+      --appendonly yes
+      --appendfsync everysec
+    volumes:
+      - vault-data:/data
+    mem_limit: 30m
+    networks:
+      - vault-net
+
+  vault-api:
+    build: ./vault-api
+    container_name: vault-api
+    restart: unless-stopped
+    environment:
+      - REDIS_URL=redis://:${VAULT_REDIS_PASSWORD}@vault-db:6379/0
+      - AGE_PUBLIC_KEY=${VAULT_AGE_PUBLIC_KEY}
+      - AGE_PRIVATE_KEY_FILE=/run/secrets/age_key
+    secrets:
+      - age_key
+    mem_limit: 30m
+    ports:
+      - "127.0.0.1:8200:8200"
+    depends_on:
+      - vault-db
+    networks:
+      - vault-net
+      - monitoring  # To integrate with monitoring stack
+
+volumes:
+  vault-data:
+
+networks:
+  vault-net:
+    driver: bridge
+
+secrets:
+  age_key:
+    file: ./secrets/age-key.txt
+```
+
+### Resource Impact
+| Component | RAM | CPU | Disk |
+|-----------|-----|-----|------|
+| Redis Alpine | ~30 MB | <1% | ~10 MB |
+| Vault API | ~20 MB | <1% | ~5 MB |
+| **Total** | **~50 MB** | **<1%** | **~15 MB** |
+
+**Available after deployment**: 337 - 50 = **287 MB** ✅
+
+### Secrets to Store in Vault
+| Key | Current Location | Priority |
+|-----|------------------|----------|
+| `telegram/bot_token` | `.env` | HIGH |
+| `telegram/chat_id` | `.env` | HIGH |
+| `grafana/admin_password` | `.env` | HIGH |
+| `ntfy/admin_token` | Future | MEDIUM |
+| `redis/vault_password` | Bootstrap | HIGH |
+| `passive/grass_credentials` | Future (v0.3.0) | LOW |
+| `passive/honeygain_credentials` | Future (v0.3.0) | LOW |
+
+### Integration with Existing Services
+```bash
+# Services will read from vault instead of .env
+# Example: telegram-forwarder
+TELEGRAM_BOT_TOKEN=$(curl -s http://localhost:8200/v1/secret/telegram/bot_token | jq -r .value)
+```
+
+---
+
+**Planning Document Version:** 5.0
 **Created:** November 25, 2025
-**Updated:** November 25, 2025 (v0.1.1 progress + v0.3.0 passive income planning)
+**Updated:** November 25, 2025 (added Redis + Age Vault for E2E encrypted secrets)
 **Author:** Claude Code
-**Status:** v0.1.1 in progress (3/6 complete), v0.2.0 planned, v0.3.0 planned
+**Status:** v0.1.1 in progress (3/6 complete), v0.2.0 planned (includes vault), v0.3.0 planned
 
 ---
 
