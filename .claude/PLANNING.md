@@ -413,7 +413,304 @@ This follows semantic versioning: PATCH version for backwards-compatible bug fix
 
 ---
 
-**Planning Document Version:** 1.0
+---
+
+# v0.2.0 Planning - Advanced Security & DDoS Protection
+
+## Release Overview
+- **Proposed Version**: 0.2.0
+- **Release Type**: Minor (Security Features + Infrastructure Hardening)
+- **Target Date**: After v0.1.1 stabilization (1 week)
+- **Risk Level**: Medium (infrastructure changes, external service integration)
+
+## Scope
+
+v0.2.0 focuses on:
+1. **DDoS Protection** - Primary focus
+2. **Deferred v0.1.1 items** - Docker secrets, ntfy ACLs, fail2ban
+3. **Dependency management** - Originally planned for v0.2.0
+
+---
+
+## DDoS Protection (NEW)
+
+### Current State Assessment
+
+| Layer | Current Protection | Risk Level |
+|-------|-------------------|------------|
+| Network (L3/L4) | OCI default only | HIGH |
+| Protocol (SYN flood) | None | HIGH |
+| Application (L7) | ntfy: 100 req/10s only | HIGH |
+| Slowloris | None | MEDIUM |
+| Brute Force | None | HIGH |
+
+### DDoS Mitigation Strategy
+
+#### Option A: Cloudflare (Recommended)
+| Attribute | Value |
+|-----------|-------|
+| **Effort** | 30-60 minutes |
+| **Cost** | Free tier available |
+| **Protection** | L3/L4/L7 DDoS, WAF, bot mitigation |
+| **Impact** | All public endpoints protected |
+
+**Implementation Steps:**
+1. Create Cloudflare account (free)
+2. Add domain `qubix.space` to Cloudflare
+3. Update DNS nameservers at registrar
+4. Configure SSL mode: Full (Strict)
+5. Enable "Under Attack" mode toggle for emergencies
+6. Configure Page Rules for caching static content
+
+**Cloudflare Settings:**
+```
+SSL/TLS: Full (Strict)
+Always Use HTTPS: On
+Minimum TLS Version: 1.2
+Auto Minify: Off (monitoring dashboards)
+Brotli: On
+HTTP/3: On
+0-RTT: On
+WebSockets: On (required for Grafana live)
+```
+
+**Firewall Rules (Free Tier):**
+```
+# Block known bad bots
+(cf.client.bot) -> Block
+
+# Rate limit API endpoints
+(http.request.uri.path contains "/api/") -> Rate Limit: 100 req/min
+
+# Challenge suspicious traffic
+(cf.threat_score gt 14) -> Managed Challenge
+```
+
+---
+
+#### Option B: Caddy Rate Limiting (Minimum)
+| Attribute | Value |
+|-----------|-------|
+| **Effort** | 1-2 hours |
+| **Cost** | Free |
+| **Protection** | L7 rate limiting only |
+| **Impact** | Application layer only |
+
+**Caddyfile Configuration:**
+```caddyfile
+# Global rate limit snippet
+(rate_limit) {
+    rate_limit {
+        zone dynamic {
+            key {remote_host}
+            events 100
+            window 1m
+        }
+    }
+}
+
+# Apply to all monitoring endpoints
+monitor.qubix.space {
+    import rate_limit
+    basicauth {
+        admin $2a$14$...
+    }
+    reverse_proxy oci-netdata:19999
+}
+
+grafana.qubix.space {
+    import rate_limit
+    reverse_proxy oci-grafana:3000
+}
+
+notify.qubix.space {
+    import rate_limit
+    reverse_proxy oci-ntfy:80
+}
+```
+
+**Note:** Requires Caddy `rate-limit` plugin. Check if installed:
+```bash
+docker exec infrastructure_files-caddy-1 caddy list-modules | grep rate
+```
+
+---
+
+#### Option C: Fail2ban (Brute Force Protection)
+| Attribute | Value |
+|-----------|-------|
+| **Effort** | 1 hour |
+| **Cost** | Free |
+| **Protection** | Brute force, repeated failures |
+| **Impact** | SSH, Grafana login |
+
+**Installation:**
+```bash
+# On server
+sudo apt-get update && sudo apt-get install -y fail2ban
+
+# Create Grafana jail
+sudo tee /etc/fail2ban/jail.d/grafana.conf << 'EOF'
+[grafana]
+enabled = true
+port = http,https
+filter = grafana
+logpath = /var/lib/docker/volumes/monitoring_grafana-data/_data/log/grafana.log
+maxretry = 5
+findtime = 600
+bantime = 3600
+action = iptables-allports[name=grafana]
+EOF
+
+# Create Grafana filter
+sudo tee /etc/fail2ban/filter.d/grafana.conf << 'EOF'
+[Definition]
+failregex = ^.*Failed login attempt.*client_ip=<HOST>.*$
+            ^.*Invalid username or password.*remote_addr=<HOST>.*$
+ignoreregex =
+EOF
+
+# Restart fail2ban
+sudo systemctl restart fail2ban
+sudo fail2ban-client status grafana
+```
+
+---
+
+### Recommended Approach
+
+**Phase 1 (v0.2.0):** Cloudflare + Fail2ban
+- Cloudflare handles volumetric and application DDoS
+- Fail2ban handles brute force against SSH and Grafana
+- Caddy rate limiting as backup (if Cloudflare bypassed)
+
+**Phase 2 (v0.3.0):** Enhanced monitoring
+- DDoS attack alerting via Telegram
+- Grafana dashboard for attack metrics
+- Automated "Under Attack" mode trigger
+
+---
+
+## Deferred Items from v0.1.1
+
+### 1. Docker Secrets Migration
+| Attribute | Value |
+|-----------|-------|
+| **Current** | Telegram tokens in plain `.env` |
+| **Target** | Docker secrets (encrypted at rest) |
+| **Effort** | 1 hour |
+| **Priority** | HIGH |
+
+### 2. ntfy ACLs
+| Attribute | Value |
+|-----------|-------|
+| **Current** | Open topics |
+| **Target** | Authenticated publish/subscribe |
+| **Effort** | 30 minutes |
+| **Priority** | MEDIUM |
+
+### 3. Docker Socket Proxy
+| Attribute | Value |
+|-----------|-------|
+| **Current** | Direct socket mount (read-only) |
+| **Target** | tecnativa/docker-socket-proxy |
+| **Effort** | 30 minutes |
+| **Priority** | MEDIUM |
+
+### 4. Fail2ban
+| Attribute | Value |
+|-----------|-------|
+| **Current** | None |
+| **Target** | Protect SSH + Grafana |
+| **Effort** | 1 hour |
+| **Priority** | HIGH (part of DDoS strategy) |
+
+---
+
+## Dependency Management (Original v0.2.0)
+
+### Pin Docker Image Versions
+| Service | Current | Action |
+|---------|---------|--------|
+| Netdata | `:latest` | Pin to current version |
+| ntfy | `:latest` | Pin to current version |
+| Loki | `3.0.0` | Already pinned |
+| Promtail | `3.0.0` | Already pinned |
+| Grafana | `11.0.0` | Already pinned |
+
+### Create DEPENDENCIES.md
+- Document all versions
+- Update procedures
+- Compatibility matrix
+
+---
+
+## v0.2.0 Release Requirements
+
+### Must Have (Blockers)
+- [ ] Cloudflare integration (or Caddy rate limiting minimum)
+- [ ] Fail2ban installation and configuration
+- [ ] Docker secrets for Telegram credentials
+- [ ] Pin Netdata and ntfy versions
+
+### Should Have
+- [ ] ntfy ACLs enabled
+- [ ] Docker socket proxy
+- [ ] DEPENDENCIES.md documentation
+- [ ] Caddy rate limiting (as Cloudflare backup)
+
+### Nice to Have
+- [ ] DDoS monitoring dashboard in Grafana
+- [ ] Automated attack alerting via Telegram
+- [ ] UPDATE_POLICY.md documentation
+
+---
+
+## v0.2.0 Deployment Strategy
+
+### Pre-Deployment
+1. Create Cloudflare account and configure domain
+2. Test DNS propagation
+3. Generate Docker secrets
+4. Prepare updated docker-compose.yml
+5. Backup all current configurations
+
+### Deployment Order
+1. **Cloudflare** (can be done independently, DNS propagation: 24-48h)
+2. **Fail2ban** (independent, no downtime)
+3. **Docker secrets** (requires container restart)
+4. **Version pinning** (may require image pull)
+5. **ntfy ACLs** (requires ntfy restart)
+6. **Docker socket proxy** (requires health-check restart)
+
+### Rollback Plan
+- Cloudflare: Switch DNS back to direct (instant via "pause")
+- Fail2ban: `sudo systemctl stop fail2ban`
+- Docker secrets: Revert to `.env` environment variables
+- Other: Restore from backup docker-compose.yml
+
+---
+
+## v0.2.0 Timeline Estimate
+
+| Task | Effort | Dependencies |
+|------|--------|--------------|
+| Cloudflare setup | 1 hour | None |
+| DNS propagation | 24-48 hours | Cloudflare |
+| Fail2ban | 1 hour | None |
+| Docker secrets | 1 hour | None |
+| Version pinning | 30 min | None |
+| ntfy ACLs | 30 min | None |
+| Docker socket proxy | 30 min | None |
+| Documentation | 2 hours | All above |
+| **Total** | **~7-8 hours** | + DNS wait |
+
+**Target**: 1 week after v0.1.1 release
+
+---
+
+**Planning Document Version:** 2.0
 **Created:** November 25, 2025
+**Updated:** November 25, 2025 (added v0.2.0 DDoS planning)
 **Author:** Claude Code
-**Status:** Ready for implementation
+**Status:** v0.1.1 ready for implementation, v0.2.0 planned
