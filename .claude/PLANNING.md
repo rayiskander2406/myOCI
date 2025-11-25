@@ -426,13 +426,301 @@ This follows semantic versioning: PATCH version for backwards-compatible bug fix
 ## Scope
 
 v0.2.0 focuses on:
-1. **DDoS Protection** - Primary focus
-2. **Deferred v0.1.1 items** - Docker secrets, ntfy ACLs, fail2ban
-3. **Dependency management** - Originally planned for v0.2.0
+1. **SSH Login Security** - Telegram notifications + 2FA (NEW)
+2. **DDoS Protection** - Cloudflare + Fail2ban
+3. **Deferred v0.1.1 items** - Docker secrets, ntfy ACLs, fail2ban
+4. **Dependency management** - Originally planned for v0.2.0
 
 ---
 
-## DDoS Protection (NEW)
+## SSH Login Security (NEW)
+
+### Overview
+
+Implement multi-layer SSH authentication security:
+1. **Telegram Notifications** - Instant alerts on any login attempt
+2. **TOTP 2FA** - Time-based one-time passwords (Google Authenticator / KeePass)
+3. **Telegram Interactive Approval** - Approve/Deny logins via Telegram (v0.3.0)
+
+---
+
+### 1. SSH Login Telegram Notifications (Must Have)
+
+| Attribute | Value |
+|-----------|-------|
+| **Feasibility** | HIGH |
+| **Effort** | 1-2 hours |
+| **Dependencies** | Existing Telegram bot, PAM |
+| **Risk** | LOW - notification only, doesn't block login |
+
+**Implementation via PAM:**
+
+```bash
+# 1. Create notification script
+sudo tee /usr/local/bin/ssh-notify.sh << 'EOF'
+#!/bin/bash
+# SSH Login Notification to Telegram via ntfy
+
+if [ "$PAM_TYPE" = "open_session" ]; then
+  TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S %Z')
+  HOSTNAME=$(hostname)
+
+  # Get geolocation (optional, requires curl)
+  GEO=$(curl -s "http://ip-api.com/line/$PAM_RHOST?fields=country,city" 2>/dev/null | tr '\n' ', ' | sed 's/,$//')
+
+  MESSAGE="🔐 *SSH Login Alert*
+
+Host: \`$HOSTNAME\`
+User: \`$PAM_USER\`
+From: \`$PAM_RHOST\`
+Location: $GEO
+Time: $TIMESTAMP
+TTY: \`$PAM_TTY\`"
+
+  # Send via ntfy (which forwards to Telegram)
+  curl -s -X POST "http://localhost:8765/monitoring-alerts" \
+    -H "Title: SSH Login: $PAM_USER" \
+    -H "Priority: high" \
+    -H "Tags: key,warning" \
+    -d "$MESSAGE" > /dev/null 2>&1 &
+fi
+EOF
+
+# 2. Make executable
+sudo chmod +x /usr/local/bin/ssh-notify.sh
+
+# 3. Add to PAM configuration
+sudo tee -a /etc/pam.d/sshd << 'EOF'
+
+# SSH Login Telegram Notifications
+session optional pam_exec.so seteuid /usr/local/bin/ssh-notify.sh
+EOF
+
+# 4. Test (no restart needed - PAM reads config on each auth)
+ssh localhost
+```
+
+**Notification Content:**
+```
+🔐 SSH Login Alert
+
+Host: oci-server
+User: ubuntu
+From: 203.0.113.45
+Location: Cairo, Egypt
+Time: 2025-11-25 14:30:00 EET
+TTY: pts/0
+```
+
+**Failed Login Notifications (Optional):**
+```bash
+# Add to /etc/pam.d/sshd for failed attempts
+auth optional pam_exec.so seteuid /usr/local/bin/ssh-notify-failed.sh
+```
+
+---
+
+### 2. TOTP Two-Factor Authentication (Must Have)
+
+| Attribute | Value |
+|-----------|-------|
+| **Feasibility** | HIGH |
+| **Effort** | 1-2 hours |
+| **Dependencies** | libpam-google-authenticator |
+| **Risk** | MEDIUM - can lock yourself out if misconfigured |
+
+**Implementation:**
+
+```bash
+# 1. Install Google Authenticator PAM module
+sudo apt-get update
+sudo apt-get install -y libpam-google-authenticator
+
+# 2. Configure for your user
+google-authenticator
+# Answer prompts:
+#   - Time-based tokens: y
+#   - Update .google_authenticator: y
+#   - Disallow reuse: y
+#   - Rate limiting: y
+
+# IMPORTANT: Save the secret key, QR code, and emergency codes!
+
+# 3. Add to KeePass (if using KeePass for TOTP)
+#    - Create new entry for "OCI Server SSH"
+#    - Add TOTP field with the secret key
+#    - KeePass will generate 6-digit codes
+
+# 4. Configure PAM
+sudo tee -a /etc/pam.d/sshd << 'EOF'
+
+# Two-Factor Authentication
+auth required pam_google_authenticator.so nullok
+EOF
+
+# 5. Configure SSH daemon
+sudo sed -i 's/^#*ChallengeResponseAuthentication.*/ChallengeResponseAuthentication yes/' /etc/ssh/sshd_config
+sudo sed -i 's/^#*KbdInteractiveAuthentication.*/KbdInteractiveAuthentication yes/' /etc/ssh/sshd_config
+
+# For key + TOTP (most secure):
+echo "AuthenticationMethods publickey,keyboard-interactive" | sudo tee -a /etc/ssh/sshd_config
+
+# 6. Restart SSH
+sudo systemctl restart sshd
+
+# 7. TEST IN A NEW TERMINAL BEFORE CLOSING CURRENT SESSION!
+```
+
+**Login Flow After Setup:**
+```
+$ ssh ubuntu@159.54.162.114
+Verification code: ******    <- Enter TOTP from phone/KeePass
+Welcome to Ubuntu...
+```
+
+**Emergency Recovery:**
+- Keep emergency scratch codes in password manager
+- Have console access via OCI dashboard as backup
+- Consider adding a backup SSH key without 2FA for emergencies
+
+---
+
+### 3. Telegram Interactive Approval (Nice to Have - v0.3.0)
+
+| Attribute | Value |
+|-----------|-------|
+| **Feasibility** | MEDIUM |
+| **Effort** | 4-8 hours |
+| **Dependencies** | Custom bot, Redis/file state, PAM module |
+| **Risk** | HIGH - can lock yourself out |
+
+**Architecture:**
+```
+┌─────────────┐     ┌──────────────┐     ┌─────────────┐
+│ SSH Login   │────▶│ PAM Module   │────▶│ Auth Bot    │
+│ Attempt     │     │ (blocking)   │     │ Service     │
+└─────────────┘     └──────────────┘     └──────┬──────┘
+                           │                     │
+                           │ polls               │ sends
+                           ▼                     ▼
+                    ┌──────────────┐     ┌─────────────┐
+                    │ Redis/File   │◀────│ Telegram    │
+                    │ State Store  │     │ (buttons)   │
+                    └──────────────┘     └─────────────┘
+```
+
+**Telegram Message:**
+```
+🔐 SSH Login Request
+
+User: ubuntu
+From: 203.0.113.45 (Cairo, Egypt)
+Time: 2025-11-25 14:30:00
+
+[✅ Approve]  [❌ Deny]
+
+⏱️ Auto-deny in 60 seconds
+```
+
+**Implementation Components:**
+
+1. **telegram-ssh-auth service** (Python)
+```python
+# telegram_ssh_auth.py
+import os
+import asyncio
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.ext import Application, CallbackQueryHandler
+
+PENDING_AUTHS = {}  # session_id -> {"approved": None, "expires": timestamp}
+
+async def handle_auth_request(session_id, user, ip):
+    keyboard = [[
+        InlineKeyboardButton("✅ Approve", callback_data=f"approve:{session_id}"),
+        InlineKeyboardButton("❌ Deny", callback_data=f"deny:{session_id}")
+    ]]
+    await bot.send_message(
+        chat_id=CHAT_ID,
+        text=f"🔐 *SSH Login Request*\n\nUser: `{user}`\nFrom: `{ip}`",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="Markdown"
+    )
+    PENDING_AUTHS[session_id] = {"approved": None, "expires": time.time() + 60}
+
+async def button_callback(update: Update, context):
+    query = update.callback_query
+    action, session_id = query.data.split(":")
+
+    if session_id in PENDING_AUTHS:
+        PENDING_AUTHS[session_id]["approved"] = (action == "approve")
+        await query.edit_message_text(
+            f"{'✅ Approved' if action == 'approve' else '❌ Denied'} by {query.from_user.first_name}"
+        )
+```
+
+2. **PAM Module** (bash wrapper)
+```bash
+#!/bin/bash
+# /usr/local/bin/ssh-telegram-auth.sh
+
+SESSION_ID=$(uuidgen)
+curl -X POST "http://localhost:8766/auth-request" \
+  -d "session_id=$SESSION_ID&user=$PAM_USER&ip=$PAM_RHOST"
+
+# Poll for approval (max 60 seconds)
+for i in {1..60}; do
+  RESULT=$(curl -s "http://localhost:8766/auth-status/$SESSION_ID")
+  if [ "$RESULT" = "approved" ]; then
+    exit 0  # Allow login
+  elif [ "$RESULT" = "denied" ]; then
+    exit 1  # Deny login
+  fi
+  sleep 1
+done
+
+exit 1  # Timeout = deny
+```
+
+**Safety Measures (CRITICAL):**
+```bash
+# ALWAYS keep an emergency bypass!
+
+# Option 1: Whitelist your home IP
+# /etc/pam.d/sshd
+auth [success=done default=ignore] pam_access.so accessfile=/etc/security/access-bypass.conf
+auth required pam_exec.so /usr/local/bin/ssh-telegram-auth.sh
+
+# /etc/security/access-bypass.conf
++ : ALL : 192.168.1.0/24    # Your home network
++ : ALL : 10.0.0.0/8        # VPN network
+- : ALL : ALL
+
+# Option 2: Separate SSH port without Telegram auth
+# Port 22 = Telegram approval required
+# Port 2222 = Key-only, no Telegram (emergency)
+```
+
+**Defer to v0.3.0 because:**
+- Requires custom development
+- High risk of lockout
+- Need robust testing
+- TOTP provides similar security with less complexity
+
+---
+
+### SSH Security Summary
+
+| Feature | Priority | Version | Effort | Risk |
+|---------|----------|---------|--------|------|
+| Telegram notifications | Must Have | v0.2.0 | 1-2 hrs | Low |
+| TOTP 2FA | Must Have | v0.2.0 | 1-2 hrs | Medium |
+| Telegram approval | Nice to Have | v0.3.0 | 4-8 hrs | High |
+
+**v0.2.0 Total SSH Security Effort: 2-4 hours**
+
+---
+
+## DDoS Protection
 
 ### Current State Assessment
 
@@ -648,18 +936,22 @@ sudo fail2ban-client status grafana
 ## v0.2.0 Release Requirements
 
 ### Must Have (Blockers)
+- [ ] **SSH Telegram notifications** - Instant alerts on login attempts
+- [ ] **SSH TOTP 2FA** - Two-factor authentication with Google Authenticator/KeePass
 - [ ] Cloudflare integration (or Caddy rate limiting minimum)
 - [ ] Fail2ban installation and configuration
 - [ ] Docker secrets for Telegram credentials
 - [ ] Pin Netdata and ntfy versions
 
 ### Should Have
+- [ ] SSH failed login notifications
 - [ ] ntfy ACLs enabled
 - [ ] Docker socket proxy
 - [ ] DEPENDENCIES.md documentation
 - [ ] Caddy rate limiting (as Cloudflare backup)
 
-### Nice to Have
+### Nice to Have (Defer to v0.3.0)
+- [ ] **Telegram interactive SSH approval** (Approve/Deny buttons)
 - [ ] DDoS monitoring dashboard in Grafana
 - [ ] Automated attack alerting via Telegram
 - [ ] UPDATE_POLICY.md documentation
@@ -674,20 +966,36 @@ sudo fail2ban-client status grafana
 3. Generate Docker secrets
 4. Prepare updated docker-compose.yml
 5. Backup all current configurations
+6. **Save TOTP emergency codes in password manager**
+7. **Verify OCI console access (backup if SSH fails)**
 
 ### Deployment Order
-1. **Cloudflare** (can be done independently, DNS propagation: 24-48h)
-2. **Fail2ban** (independent, no downtime)
-3. **Docker secrets** (requires container restart)
-4. **Version pinning** (may require image pull)
-5. **ntfy ACLs** (requires ntfy restart)
-6. **Docker socket proxy** (requires health-check restart)
+1. **SSH Telegram notifications** (low risk, test first)
+2. **Cloudflare** (can be done independently, DNS propagation: 24-48h)
+3. **Fail2ban** (independent, no downtime)
+4. **SSH TOTP 2FA** (CRITICAL: Test in new terminal before closing session!)
+5. **Docker secrets** (requires container restart)
+6. **Version pinning** (may require image pull)
+7. **ntfy ACLs** (requires ntfy restart)
+8. **Docker socket proxy** (requires health-check restart)
 
 ### Rollback Plan
+- **SSH TOTP**: Remove lines from `/etc/pam.d/sshd`, restart sshd
+- **SSH notifications**: Remove PAM exec line (non-blocking, safe)
 - Cloudflare: Switch DNS back to direct (instant via "pause")
 - Fail2ban: `sudo systemctl stop fail2ban`
 - Docker secrets: Revert to `.env` environment variables
 - Other: Restore from backup docker-compose.yml
+
+**TOTP Emergency Recovery:**
+```bash
+# If locked out:
+# 1. Access via OCI Console (web-based terminal)
+# 2. Remove TOTP requirement:
+sudo sed -i '/pam_google_authenticator/d' /etc/pam.d/sshd
+sudo sed -i '/AuthenticationMethods/d' /etc/ssh/sshd_config
+sudo systemctl restart sshd
+```
 
 ---
 
@@ -695,6 +1003,8 @@ sudo fail2ban-client status grafana
 
 | Task | Effort | Dependencies |
 |------|--------|--------------|
+| **SSH Telegram notifications** | 1-2 hours | None |
+| **SSH TOTP 2FA** | 1-2 hours | None |
 | Cloudflare setup | 1 hour | None |
 | DNS propagation | 24-48 hours | Cloudflare |
 | Fail2ban | 1 hour | None |
@@ -703,14 +1013,24 @@ sudo fail2ban-client status grafana
 | ntfy ACLs | 30 min | None |
 | Docker socket proxy | 30 min | None |
 | Documentation | 2 hours | All above |
-| **Total** | **~7-8 hours** | + DNS wait |
+| **Total** | **~10-12 hours** | + DNS wait |
 
 **Target**: 1 week after v0.1.1 release
 
 ---
 
-**Planning Document Version:** 2.0
+**Planning Document Version:** 3.0
 **Created:** November 25, 2025
-**Updated:** November 25, 2025 (added v0.2.0 DDoS planning)
+**Updated:** November 25, 2025 (added SSH login security features)
 **Author:** Claude Code
 **Status:** v0.1.1 ready for implementation, v0.2.0 planned
+
+---
+
+## v0.3.0 Preview (Future)
+
+Features deferred from v0.2.0:
+- **Telegram interactive SSH approval** (Approve/Deny buttons with timeout)
+- DDoS monitoring dashboard in Grafana
+- Automated "Under Attack" mode trigger
+- Enhanced security event monitoring
